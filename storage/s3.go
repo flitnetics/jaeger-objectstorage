@@ -1,4 +1,4 @@
-package storage
+module storage
 import (
         "fmt"
         "os"
