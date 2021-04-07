@@ -1,4 +1,4 @@
-module github.com/muhammad/jaeger-s3
+module "jaeger-s3"
 
 go 1.16
 

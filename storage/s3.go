@@ -11,6 +11,7 @@ import (
 var AccessKeyID string
 var SecretAccessKey string
 var MyRegion string
+var MyBucket string
 
 func GetEnvWithKey(key string) string {
  return os.Getenv(key)
@@ -40,10 +41,22 @@ func ConnectAws() *session.Session {
 
 func UploadData (session *session.Session) {
         uploader := s3manager.NewUploader(session)
+        f, err := os.Open("test.txt")
+
+        if err != nil {
+                panic(err)
+        }
+
+        uploader.Upload(&s3manager.UploadInput{
+                Bucket: aws.String(MyBucket),
+                Key:    aws.String("test.txt"),
+                Body:   f,
+        })
 }
 
-func main() {
+func main() *session.Session {
   sess := ConnectAws()
   fmt.Println(sess)
   UploadData(sess)
+  return sess
 }
