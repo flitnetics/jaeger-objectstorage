@@ -10,7 +10,7 @@ CGO_ENABLED=0 go build ./cmd/jaeger-s3/
 ```
 
 ## Start
-In order to start plugin just tell jaeger the path to a config compiled plugin (password can be passed also as ENV: DB_PASSWORD).
+In order to start plugin just tell jaeger the path to a config compiled plugin.
 
 ```
 jaeger-all-in-one --grpc-storage-plugin.binary=./jaeger-s3 --grpc-storage-plugin.configuration-file=./config-example.yaml
