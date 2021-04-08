@@ -1,0 +1,29 @@
+package config
+
+import (
+	"github.com/spf13/viper"
+)
+
+const (
+	dbPrefix = "db."
+        flagRegion = dbPrefix + "region"
+        flagBucket = dbPrefix + "bucket"
+        flagAwsId = dbPrefix + "awsid"
+        flagAwsSecret = dbPrefix + "awssecret"
+)
+
+// Configuration describes the options to customize the storage behavior
+type Configuration struct {
+	Region            string        `yaml:"host"`
+	Bucket            string        `yaml:"bucket"`
+        AwsId             string        `yaml:"aws_id"`
+        AwsSecret         string        `yaml:"aws_secret"`
+}
+
+// InitFromViper initializes the options struct with values from Viper
+func (c *Configuration) InitFromViper(v *viper.Viper) {
+	c.Region = v.GetString(flagRegion)
+        c.Bucket = v.GetString(flagBucket)
+        c.AwsId = v.GetString(flagAwsId)
+        c.AwsSecret = v.GetString(flagAwsSecret)
+}
