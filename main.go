@@ -9,21 +9,21 @@ import (
     "github.com/jaegertracing/jaeger/storage/spanstore"
 )
     
-type s3StorePlugin interface {
-   	SpanReader() spanstore.Reader
+type StoragePlugin interface {
+        SpanReader() spanstore.Reader
    	SpanWriter() spanstore.Writer
    	DependencyReader() dependencystore.Reader
 }
 
-func readS3() {
+func SpanReader() {
 
 }
 
-func writeS3() {
+func SpanWriter() {
 
 }
 
-func dependencyReader() {
+func DependencyReader() {
 
 }
 
@@ -32,11 +32,7 @@ func main() {
     flag.StringVar(&configPath, "config", "", "A path to the plugin's configuration file")
     flag.Parse()
 
-    plugin := s3StorePlugin{
-            readS3(),
-            writeS3(),
-            dependencyReader(),
-    }
+    plugin := StoragePlugin{}
     
     grpc.Serve(&shared.PluginServices{
         Store:        plugin,
