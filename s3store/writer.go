@@ -1,7 +1,9 @@
 package s3store
 
 import (
+        "context"
 	"io"
+        "time"
 
 	hclog "github.com/hashicorp/go-hclog"
 
@@ -10,10 +12,28 @@ import (
 
 	"github.com/go-pg/pg/v9"
 	"github.com/go-pg/pg/v9/orm"
+
+        "github.com/cortexproject/cortex/pkg/chunk"
+        "github.com/cortexproject/cortex/pkg/chunk/local"
+        "github.com/cortexproject/cortex/pkg/chunk/storage"
+        util_log "github.com/cortexproject/cortex/pkg/util/log"
+
+        "github.com/prometheus/client_golang/prometheus"
+        pmodel "github.com/prometheus/common/model"
+
+        "github.com/weaveworks/common/user"
+
+        lstore "jaeger-s3/storage"
+        "github.com/grafana/loki/pkg/util/validation"
 )
 
 var _ spanstore.Writer = (*Writer)(nil)
 var _ io.Closer = (*Writer)(nil)
+var (
+        start     = pmodel.Time(1523750400000)
+        ctx       = user.InjectOrgID(context.Background(), "fake")
+        maxChunks = 1200 // 1200 chunks is 2gib ish of data enough to run benchmark
+)
 
 // Writer handles all writes to PostgreSQL 2.x for the Jaeger data model
 type Writer struct {
@@ -27,6 +47,47 @@ type Writer struct {
 	//writeWG sync.WaitGroup
 
 	logger hclog.Logger
+}
+
+func getStore() (lstore.Store, error) {
+        storeConfig := lstore.Config{
+                Config: storage.Config{
+                        BoltDBConfig: local.BoltDBConfig{Directory: "/tmp/benchmark/index"},
+                        FSConfig:     local.FSConfig{Directory: "/tmp/benchmark/chunks"},
+                },
+        }
+
+        schemaCfg := lstore.SchemaConfig{
+                SchemaConfig: chunk.SchemaConfig{
+                        Configs: []chunk.PeriodConfig{
+                                {
+                                        From:       chunk.DayTime{Time: start},
+                                        IndexType:  "boltdb",
+                                        ObjectType: "filesystem",
+                                        Schema:     "v9",
+                                        IndexTables: chunk.PeriodicTableConfig{
+                                                Prefix: "index_",
+                                                Period: time.Hour * 168,
+                                        },
+                                },
+                        },
+                },
+        }
+
+        chunkStore, err := storage.NewStore(
+                storeConfig.Config,
+                chunk.StoreConfig{},
+                schemaCfg.SchemaConfig,
+                &validation.Overrides{},
+                prometheus.DefaultRegisterer,
+                nil,
+                util_log.Logger,
+        )
+        if err != nil {
+                return nil, err
+        }
+
+        return lstore.NewStore(storeConfig, schemaCfg, chunkStore, prometheus.DefaultRegisterer)
 }
 
 // NewWriter returns a Writer for PostgreSQL v2.x
