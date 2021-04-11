@@ -23,12 +23,13 @@ type Store struct {
 	writer *Writer
 }
 
+
 func NewStore(conf *config.Configuration, logger hclog.Logger) (*Store, func() error, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     conf.Host,
 		User:     conf.Username,
 		Password: conf.Password,
-	})
+	}) 
 
 	reader := NewReader(db, logger)
 	writer := NewWriter(db, logger)

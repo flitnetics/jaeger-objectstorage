@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
 	github.com/cortexproject/cortex v1.7.1-0.20210224085859-66d6fb5b0d42
+	github.com/drone/envsubst v1.0.2 // indirect
 	github.com/fatih/color v1.9.0 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-pg/pg/v9 v9.2.0
@@ -27,6 +28,8 @@ require (
 	go.etcd.io/bbolt v1.3.5-0.20200615073812-232d8fc87f50 // indirect
 	google.golang.org/api v0.39.0 // indirect
 	google.golang.org/grpc v1.37.0 // indirect
+	sigs.k8s.io/kind v0.10.0 // indirect
+	sigs.k8s.io/kustomize v2.0.3+incompatible // indirect
 )
 
 replace github.com/hpcloud/tail => github.com/grafana/tail v0.0.0-20201004203643-7aa4e4a91f03
