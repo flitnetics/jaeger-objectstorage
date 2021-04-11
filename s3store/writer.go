@@ -3,11 +3,11 @@ package s3store
 import (
 	"io"
         "log"
-        _ "io/ioutil"
-        _ "path"
+        "io/ioutil"
+        "path"
         "time"
         "context"
-        "flag"
+        _ "flag"
 
 	hclog "github.com/hashicorp/go-hclog"
 
@@ -26,16 +26,17 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 
 	"github.com/cortexproject/cortex/pkg/util/flagext"
-	_ "github.com/cortexproject/cortex/pkg/chunk/storage"
-	// util_log "github.com/cortexproject/cortex/pkg/util/log"
+	"github.com/cortexproject/cortex/pkg/chunk/storage"
+	util_log "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/chunk"
-	// cortex_local "github.com/cortexproject/cortex/pkg/chunk/local"
+	cortex_local "github.com/cortexproject/cortex/pkg/chunk/local"
 	"github.com/cortexproject/cortex/pkg/ingester/client"
 
-	_ "github.com/grafana/loki/pkg/util/validation"
+	"github.com/grafana/loki/pkg/util/validation"
 	_ "github.com/grafana/loki/pkg/cfg"
  
         lstore "jaeger-s3/storage"
+        "jaeger-s3/config/types"
         _ "jaeger-s3/storage/stores/shipper"
 
 )
@@ -56,17 +57,8 @@ type Writer struct {
        spanMetaMeasurement string
        logMeasurement      string
 
+       cfg    *types.Config
        logger hclog.Logger
-}
-
-type LConfig struct {
-	StorageConfig    lstore.Config              `yaml:"storage_config,omitempty"`
-	SchemaConfig     lstore.SchemaConfig        `yaml:"schema_config,omitempty"`
-}
-
-type MConfig struct {
-	LConfig     `yaml:",inline"`
-	configFile      string
 }
 
 type timeRange struct {
@@ -123,24 +115,11 @@ func newChunk(stream logproto.Stream) chunk.Chunk {
         return c
 }
 
-func (c *LConfig) Validate() error {
-	if err := c.SchemaConfig.Validate(); err != nil {
-                log.Println("schema: %s", c.SchemaConfig)
-                log.Println("invalid schema config")
-	}
-	if err := c.StorageConfig.Validate(); err != nil {
-                log.Println("invalid storage config")
-	}
-	if err := c.StorageConfig.BoltDBShipperConfig.Validate(); err != nil {
-                log.Println("invalid boltdb-shipper config")
-	}
-	return nil
-}
-
 // NewWriter returns a Writer for PostgreSQL v2.x
-func NewWriter(db *pg.DB, logger hclog.Logger) *Writer {
+func NewWriter(db *pg.DB, cfg *types.Config, logger hclog.Logger) *Writer {
 	w := &Writer{
 		db: db,
+                cfg: cfg,
 		logger: logger,
 	}
 
@@ -156,22 +135,6 @@ func NewWriter(db *pg.DB, logger hclog.Logger) *Writer {
 // Close triggers a graceful shutdown
 func (w *Writer) Close() error {
 	return nil
-}
-
-func (c *MConfig) RegisterFlags(f *flag.FlagSet) {
-	f.StringVar(&c.configFile, "config.file", "/Users/zaihan/Projects/jaeger-s3/config-example.yaml", "yaml file to load")
-	c.LConfig.LRegisterFlags(f)
-}
-
-func (c *LConfig) LRegisterFlags(f *flag.FlagSet) {
-	c.StorageConfig.RegisterFlags(f)
-	c.SchemaConfig.RegisterFlags(f)
-}
-
-func (c *MConfig) Clone() flagext.Registerer {
-	return func(c MConfig) *MConfig {
-		return &c
-	}(*c)
 }
 
 // WriteSpan saves the span into PostgreSQL
@@ -207,18 +170,6 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		return err
 	}
 
-        // https://github.com/grafana/loki/blob/306cc724380c1fca80948b4e29221a17bd9846b3/cmd/loki/main.go
-	//var config MConfig
-
-	/* if err := cfg.Parse(&config); err != nil {
-                log.Println("failed to parse config %s", err)
-	} 
-
-	err := config.Validate()
-	if err != nil {
-                log.Println("failed to validate config %s", err)
-	}
-
 	tempDir, err := ioutil.TempDir("", "boltdb-shippers")
         if err != nil {
                 log.Println("tempDir failure %s", err)
@@ -230,10 +181,10 @@ func (w *Writer) WriteSpan(span *model.Span) error {
         }
 
 	// config for BoltDB Shipper
-	boltdbShipperConfig := shipper.Config{}
+	boltdbShipperConfig := w.cfg.StorageConfig.BoltDBShipperConfig
 	flagext.DefaultValues(&boltdbShipperConfig)
 	boltdbShipperConfig.ActiveIndexDirectory = path.Join(tempDir, "index")
-	boltdbShipperConfig.SharedStoreType = "filesystem"
+	boltdbShipperConfig.SharedStoreType = "s3"
 	boltdbShipperConfig.CacheLocation = path.Join(tempDir, "boltdb-shipper-cache")
 
 	// dates for activation of boltdb shippers
@@ -242,6 +193,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
 	kconfig := lstore.Config{
 		Config: storage.Config{
+                        AWSStorageConfig: w.cfg.StorageConfig.AWSStorageConfig,
 			FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
 		},
 		BoltDBShipperConfig: boltdbShipperConfig,
@@ -253,7 +205,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 				{
 					From:       chunk.DayTime{Time: timeToModelTime(firstStoreDate)},
 					IndexType:  "boltdb-shipper",
-					ObjectType: "filesystem",
+					ObjectType: "s3",
 					Schema:     "v9",
 					IndexTables: chunk.PeriodicTableConfig{
 						Prefix: "index_",
@@ -263,7 +215,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 				{
 					From:       chunk.DayTime{Time: timeToModelTime(secondStoreDate)},
 					IndexType:  "boltdb-shipper",
-					ObjectType: "filesystem",
+					ObjectType: "s3",
 					Schema:     "v11",
 					IndexTables: chunk.PeriodicTableConfig{
 						Prefix: "index_",
@@ -275,7 +227,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		},
 	}
 
-	lstore.RegisterCustomIndexClients(&config.LConfig.StorageConfig, nil)
+	lstore.RegisterCustomIndexClients(&w.cfg.StorageConfig, nil)
 
 	chunkStore, err := storage.NewStore(
 		kconfig.Config,
@@ -325,7 +277,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
                 }
 
 		addedChunkIDs[chk.ExternalKey()] = struct{}{}
-	} */
+	}
 
 	insertRefs(w.db, span)
 	insertLogs(w.db, span)
