@@ -2,9 +2,15 @@ package config
 
 import (
         lstore "jaeger-s3/storage"
+        "jaeger-s3/storage/stores/shipper/compactor"
+ 
 	"github.com/spf13/viper"
         "flag"
         "log"
+
+	"github.com/cortexproject/cortex/pkg/chunk"
+
+	"github.com/grafana/loki/pkg/util/validation"
 )
 
 const (
@@ -31,8 +37,16 @@ type Configuration struct {
 }
 
 type Config struct {
-        StorageConfig    lstore.Config              `yaml:"storage_config"`
-        SchemaConfig     lstore.SchemaConfig        `yaml:"schema_config"`
+	Target      string `yaml:"target,omitempty"`
+	AuthEnabled bool   `yaml:"auth_enabled,omitempty"`
+	HTTPPrefix  string `yaml:"http_prefix"`
+
+	StorageConfig    lstore.Config              `yaml:"storage_config,omitempty"`
+	ChunkStoreConfig chunk.StoreConfig           `yaml:"chunk_store_config,omitempty"`
+	TableManager     chunk.TableManagerConfig    `yaml:"table_manager,omitempty"`
+	SchemaConfig     lstore.SchemaConfig        `yaml:"schema_config,omitempty"`
+	LimitsConfig     validation.Limits           `yaml:"limits_config,omitempty"`
+	CompactorConfig  compactor.Config            `yaml:"compactor,omitempty"`
 }
 
 func (c *Config) Validate() error {
@@ -50,8 +64,14 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) RegisterFlags(f *flag.FlagSet) {
+	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
+
 	c.StorageConfig.RegisterFlags(f)
+	c.ChunkStoreConfig.RegisterFlags(f)
 	c.SchemaConfig.RegisterFlags(f)
+	c.TableManager.RegisterFlags(f)
+	c.LimitsConfig.RegisterFlags(f)
+	c.CompactorConfig.RegisterFlags(f)
 }
 
 // InitFromViper initializes the options struct with values from Viper

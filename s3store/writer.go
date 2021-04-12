@@ -7,6 +7,7 @@ import (
         "path"
         "time"
         "context"
+        "sync"
         _ "flag"
 
 	hclog "github.com/hashicorp/go-hclog"
@@ -188,7 +189,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 	boltdbShipperConfig.CacheLocation = path.Join(tempDir, "boltdb-shipper-cache")
 
 	// dates for activation of boltdb shippers
-	firstStoreDate := parseDate("2019-01-01")
+        firstStoreDate := parseDate("2019-01-01")
 	secondStoreDate := parseDate("2019-01-02")
 
 	kconfig := lstore.Config{
@@ -199,40 +200,41 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		BoltDBShipperConfig: boltdbShipperConfig,
 	}
 
-	schemaConfig := lstore.SchemaConfig{
-		chunk.SchemaConfig{
-			Configs: []chunk.PeriodConfig{
-				{
-					From:       chunk.DayTime{Time: timeToModelTime(firstStoreDate)},
-					IndexType:  "boltdb-shipper",
-					ObjectType: "s3",
-					Schema:     "v9",
-					IndexTables: chunk.PeriodicTableConfig{
-						Prefix: "index_",
-						Period: time.Hour * 168,
-					},
-				},
-				{
-					From:       chunk.DayTime{Time: timeToModelTime(secondStoreDate)},
-					IndexType:  "boltdb-shipper",
-					ObjectType: "s3",
-					Schema:     "v11",
-					IndexTables: chunk.PeriodicTableConfig{
-						Prefix: "index_",
-						Period: time.Hour * 168,
-					},
-					RowShards: 2,
-				},
-			},
-		},
-	}
+       schemaConfig := lstore.SchemaConfig{
+               chunk.SchemaConfig{
+                       Configs: []chunk.PeriodConfig{
+                               {
+                                       From:       chunk.DayTime{Time: timeToModelTime(firstStoreDate)},
+                                       IndexType:  "boltdb-shipper",
+                                       ObjectType: "s3",
+                                       Schema:     "v9",
+                                       IndexTables: chunk.PeriodicTableConfig{
+                                               Prefix: "index_",
+                                               Period: time.Hour * 168,
+                                       },
+                               },
+                               {
+                                       From:       chunk.DayTime{Time: timeToModelTime(secondStoreDate)},
+                                       IndexType:  "boltdb-shipper",
+                                       ObjectType: "s3",
+                                       Schema:     "v11",
+                                       IndexTables: chunk.PeriodicTableConfig{
+                                               Prefix: "index_",
+                                               Period: time.Hour * 168,
+                                       },
+                                       RowShards: 2,
+                               },
+                       },
+               },
+       }
+
 
 	lstore.RegisterCustomIndexClients(&w.cfg.StorageConfig, nil)
 
 	chunkStore, err := storage.NewStore(
 		kconfig.Config,
-		chunk.StoreConfig{},
-		schemaConfig.SchemaConfig,
+                w.cfg.ChunkStoreConfig,
+                w.cfg.SchemaConfig.SchemaConfig,
 		limits,
 		nil,
 		nil,
@@ -266,7 +268,9 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		},
 	}
 
+        var mutex = &sync.Mutex{}
 	// build and add chunks to the store
+        mutex.Lock()
 	addedChunkIDs := map[string]struct{}{}
 	for _, tr := range chunksToBuildForTimeRanges {
 		chk := newChunk(buildTestStreams(fooLabelsWithName, tr))
@@ -278,6 +282,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
 		addedChunkIDs[chk.ExternalKey()] = struct{}{}
 	}
+        mutex.Unlock()
 
 	insertRefs(w.db, span)
 	insertLogs(w.db, span)
