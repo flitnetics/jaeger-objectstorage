@@ -18,10 +18,12 @@ import (
 	"github.com/go-pg/pg/v9"
 	"github.com/go-pg/pg/v9/orm"
 
-	"github.com/weaveworks/common/user"
+        "github.com/weaveworks/common/user"
 
 	pmodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
+	// "github.com/prometheus/client_golang/prometheus"
+
 	"github.com/grafana/loki/pkg/chunkenc"
 	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/logproto"
@@ -79,7 +81,7 @@ func buildTestStreams(labels string, tr timeRange) logproto.Stream {
         for from := tr.from; from.Before(tr.to); from = from.Add(time.Second) {
                 stream.Entries = append(stream.Entries, logproto.Entry{
                         Timestamp: from,
-                        Line:      from.String(),
+                        Line:      "Hello there! I'm Jack Sparrow",
                 })
         }
 
@@ -154,6 +156,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		OnConflict("(operation_name) DO NOTHING").Returning("id").Limit(1).SelectOrInsert(); err != nil {
 		return err
 	}
+        //log.Println("span data: %v" , span)
 	if _, err := w.db.Model(&Span{
 		ID:          span.SpanID,
 		TraceIDLow:  span.TraceID.Low,
@@ -171,6 +174,10 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		return err
 	}
 
+        if w == nil {
+                return nil
+        }
+
 	tempDir, err := ioutil.TempDir("", "boltdb-shippers")
         if err != nil {
                 log.Println("tempDir failure %s", err)
@@ -184,15 +191,11 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 	// config for BoltDB Shipper
 	boltdbShipperConfig := w.cfg.StorageConfig.BoltDBShipperConfig
 	flagext.DefaultValues(&boltdbShipperConfig)
-	boltdbShipperConfig.ActiveIndexDirectory = path.Join(tempDir, "index")
-	boltdbShipperConfig.SharedStoreType = "s3"
-	boltdbShipperConfig.CacheLocation = path.Join(tempDir, "boltdb-shipper-cache")
 
 	// dates for activation of boltdb shippers
-        firstStoreDate := parseDate("2019-01-01")
 	secondStoreDate := parseDate("2019-01-02")
 
-	kconfig := lstore.Config{
+	kconfig := &lstore.Config{
 		Config: storage.Config{
                         AWSStorageConfig: w.cfg.StorageConfig.AWSStorageConfig,
 			FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
@@ -200,89 +203,66 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		BoltDBShipperConfig: boltdbShipperConfig,
 	}
 
-       schemaConfig := lstore.SchemaConfig{
-               chunk.SchemaConfig{
-                       Configs: []chunk.PeriodConfig{
-                               {
-                                       From:       chunk.DayTime{Time: timeToModelTime(firstStoreDate)},
-                                       IndexType:  "boltdb-shipper",
-                                       ObjectType: "s3",
-                                       Schema:     "v9",
-                                       IndexTables: chunk.PeriodicTableConfig{
-                                               Prefix: "index_",
-                                               Period: time.Hour * 168,
-                                       },
-                               },
-                               {
-                                       From:       chunk.DayTime{Time: timeToModelTime(secondStoreDate)},
-                                       IndexType:  "boltdb-shipper",
-                                       ObjectType: "s3",
-                                       Schema:     "v11",
-                                       IndexTables: chunk.PeriodicTableConfig{
-                                               Prefix: "index_",
-                                               Period: time.Hour * 168,
-                                       },
-                                       RowShards: 2,
-                               },
-                       },
-               },
-       }
+        var mutex = &sync.Mutex{}
 
+        // nasty hack
+        mutex.Lock()
+        lstore.RegisterCustomIndexClients(&w.cfg.StorageConfig, nil)
+        defer mutex.Unlock()
 
-	lstore.RegisterCustomIndexClients(&w.cfg.StorageConfig, nil)
-
-	chunkStore, err := storage.NewStore(
+        chunkStore, err := storage.NewStore(
 		kconfig.Config,
                 w.cfg.ChunkStoreConfig,
                 w.cfg.SchemaConfig.SchemaConfig,
 		limits,
-		nil,
+                nil,
 		nil,
 		util_log.Logger,
 	)
+
         if err != nil {
                 log.Println("chunkStore error: %s", err)
         }
 
-	store, err := lstore.NewStore(kconfig, schemaConfig, chunkStore, nil)
-        if err != nil {
-                log.Println("store error: %s", err)
-        }
+        log.Println("chunkStore: %s", chunkStore)
 
-	// time ranges adding a chunk for each store and a chunk which overlaps both the stores
-	chunksToBuildForTimeRanges := []timeRange{
-		{
-			// chunk just for first store
-			secondStoreDate.Add(-3 * time.Hour),
-			secondStoreDate.Add(-2 * time.Hour),
-		},
-		{
-			// chunk overlapping both the stores
-			secondStoreDate.Add(-time.Hour),
-			secondStoreDate.Add(time.Hour),
-		},
-		{
-			// chunk just for second store
-			secondStoreDate.Add(2 * time.Hour),
-			secondStoreDate.Add(3 * time.Hour),
-		},
-	}
-
-        var mutex = &sync.Mutex{}
-	// build and add chunks to the store
-        mutex.Lock()
-	addedChunkIDs := map[string]struct{}{}
-	for _, tr := range chunksToBuildForTimeRanges {
-		chk := newChunk(buildTestStreams(fooLabelsWithName, tr))
-
-		err := store.PutOne(ctx, chk.From, chk.Through, chk)
+        if chunkStore != nil {
+  	        store, err := lstore.NewStore(*kconfig, w.cfg.SchemaConfig, chunkStore, nil)
                 if err != nil {
-                        log.Println("store put error: %s", err)
+                       log.Println("store error: %s", err)
                 }
 
-		addedChunkIDs[chk.ExternalKey()] = struct{}{}
-	}
-        mutex.Unlock()
+	        // time ranges adding a chunk for each store and a chunk which overlaps both the stores
+	        chunksToBuildForTimeRanges := []timeRange{
+		        {
+			        // chunk just for first store
+			        secondStoreDate.Add(-3 * time.Hour),
+			        secondStoreDate.Add(-2 * time.Hour),
+		        },
+		        {
+			        // chunk overlapping both the stores
+			        secondStoreDate.Add(-time.Hour),
+			        secondStoreDate.Add(time.Hour),
+		        },
+		        {
+			        // chunk just for second store
+			        secondStoreDate.Add(2 * time.Hour),
+			        secondStoreDate.Add(3 * time.Hour),
+		        },
+	        }
+
+	        // build and add chunks to the store
+	        addedChunkIDs := map[string]struct{}{}
+	        for _, tr := range chunksToBuildForTimeRanges {
+		        chk := newChunk(buildTestStreams(fooLabelsWithName, tr))
+                        err := store.PutOne(ctx, chk.From, chk.Through, chk)
+                        // err := store.Put(ctx, []chunk.Chunk{chk})
+                        if err != nil {
+                                log.Println("store PutOne error: %s", err)
+                        }
+		        addedChunkIDs[chk.ExternalKey()] = struct{}{}
+	        }
+        }
 
 	insertRefs(w.db, span)
 	insertLogs(w.db, span)
