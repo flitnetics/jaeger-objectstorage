@@ -8,7 +8,6 @@ import (
         "time"
         "context"
         "sync"
-        _ "flag"
 
 	hclog "github.com/hashicorp/go-hclog"
 
@@ -22,7 +21,6 @@ import (
 
 	pmodel "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/pkg/labels"
-	// "github.com/prometheus/client_golang/prometheus"
 
 	"github.com/grafana/loki/pkg/chunkenc"
 	"github.com/grafana/loki/pkg/logql"
@@ -36,12 +34,9 @@ import (
 	"github.com/cortexproject/cortex/pkg/ingester/client"
 
 	"github.com/grafana/loki/pkg/util/validation"
-	_ "github.com/grafana/loki/pkg/cfg"
  
         lstore "jaeger-s3/storage"
         "jaeger-s3/config/types"
-        _ "jaeger-s3/storage/stores/shipper"
-
 )
 
 var _ spanstore.Writer = (*Writer)(nil)
