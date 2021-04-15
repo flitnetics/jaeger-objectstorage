@@ -31,9 +31,10 @@ func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger
 		User:     conf.Username,
 		Password: conf.Password,
 	}) 
+
         lstore.RegisterCustomIndexClients(&cfg.StorageConfig, nil)
 
-	reader := NewReader(db, logger)
+	reader := NewReader(db, cfg, logger)
 	writer := NewWriter(db, cfg, logger)
 
 	store := &Store{

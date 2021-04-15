@@ -165,10 +165,6 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		return err
 	}
 
-        if w == nil {
-                return nil
-        }
-
 	tempDir, err := ioutil.TempDir("", "boltdb-shippers")
         if err != nil {
                 log.Println("tempDir failure %s", err)
@@ -223,7 +219,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		        {
 			        // chunk just for first store
 			        storeDate,
-			        storeDate.Add(4603000 * time.Microsecond),
+			        storeDate.Add(span.Duration * time.Microsecond),
 		        },
 	        }
 

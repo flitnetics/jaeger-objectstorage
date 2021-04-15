@@ -3,27 +3,50 @@ package s3store
 import (
 	"context"
 	"time"
+        "log"
+        "path"
+        "io/ioutil"
 
 	"github.com/go-pg/pg/v9"
+        "github.com/weaveworks/common/user"
 
 	hclog "github.com/hashicorp/go-hclog"
+        pmodel "github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/pkg/labels"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+
+        "github.com/cortexproject/cortex/pkg/util/flagext"
+        "github.com/cortexproject/cortex/pkg/chunk/storage"
+        util_log "github.com/cortexproject/cortex/pkg/util/log"
+        cortex_local "github.com/cortexproject/cortex/pkg/chunk/local"
+
+        lstore "jaeger-s3/storage"
+        "github.com/grafana/loki/pkg/util/validation"
+	"github.com/grafana/loki/pkg/logql"
+
+        "jaeger-s3/config/types"
 )
 
 var _ spanstore.Reader = (*Reader)(nil)
 
+var (
+        userCtx        = user.InjectOrgID(context.Background(), "data")
+)
+
 // Reader can query for and load traces from PostgreSQL v2.x.
 type Reader struct {
 	db *pg.DB
+        cfg    *types.Config
 
 	logger hclog.Logger
 }
 
 // NewReader returns a new SpanReader for PostgreSQL v2.x.
-func NewReader(db *pg.DB, logger hclog.Logger) *Reader {
+func NewReader(db *pg.DB, cfg *types.Config, logger hclog.Logger) *Reader {
 	return &Reader{
+                cfg: cfg,
 		db:     db,
 		logger: logger,
 	}
@@ -42,6 +65,51 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 			ret = append(ret, service.ServiceName)
 		}
 	}
+
+        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
+        if err != nil {
+                log.Println("tempDir failure %s", err)
+        }
+
+        limits, err := validation.NewOverrides(validation.Limits{}, nil)
+        if err != nil {
+                log.Println("limits failure %s", err)
+        }
+
+        // config for BoltDB Shipper
+        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
+        flagext.DefaultValues(&boltdbShipperConfig)
+
+        kconfig := &lstore.Config{
+                Config: storage.Config{
+                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
+                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
+                },
+                BoltDBShipperConfig: boltdbShipperConfig,
+        }
+
+        rChunkStore, err := storage.NewStore(
+                kconfig.Config,
+                r.cfg.ChunkStoreConfig,
+                r.cfg.SchemaConfig.SchemaConfig,
+                limits,
+                nil,
+                nil,
+                util_log.Logger,
+        )
+
+        //var fooLabelsWithName = "{__name__=\"service_name\"}"
+        var fooLabelsWithName = "{service_name=\"customer\", __name__=\"service_name\"}"
+
+        if rChunkStore != nil {
+                rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
+                if err != nil {
+                       log.Println("read store error: %s", err)
+                }
+
+                chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+                log.Println("chunks data: %s", chunks)
+        }
 
 	return ret, err
 }
@@ -195,4 +263,16 @@ func (r *Reader) GetDependencies(endTs time.Time, lookback time.Duration) (ret [
 		Select(&ret)
 
 	return ret, err
+}
+
+func timeToModelTime(t time.Time) pmodel.Time {
+	return pmodel.TimeFromUnixNano(t.UnixNano())
+}
+
+func newMatchers(matchers string) []*labels.Matcher {
+	res, err := logql.ParseMatchers(matchers)
+	if err != nil {
+		panic(err)
+	}
+	return res
 }
