@@ -11,6 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+        lstore "jaeger-s3/storage"
 )
 
 var (
@@ -30,6 +31,7 @@ func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger
 		User:     conf.Username,
 		Password: conf.Password,
 	}) 
+        lstore.RegisterCustomIndexClients(&cfg.StorageConfig, nil)
 
 	reader := NewReader(db, logger)
 	writer := NewWriter(db, cfg, logger)

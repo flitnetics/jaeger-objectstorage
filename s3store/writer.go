@@ -7,7 +7,7 @@ import (
         "path"
         "time"
         "context"
-        "sync"
+        "fmt"
 
 	hclog "github.com/hashicorp/go-hclog"
 
@@ -42,10 +42,10 @@ import (
 var _ spanstore.Writer = (*Writer)(nil)
 var _ io.Closer = (*Writer)(nil)
 
-var fooLabelsWithName = "{foo=\"bar\", __name__=\"logs\"}"
+//var fooLabelsWithName = "{foo=\"bar\", __name__=\"logs\"}"
 
 var (
-	ctx        = user.InjectOrgID(context.Background(), "fake")
+	ctx        = user.InjectOrgID(context.Background(), "data")
 )
 
 // Writer handles all writes to PostgreSQL 2.x for the Jaeger data model
@@ -61,10 +61,6 @@ type Writer struct {
 
 type timeRange struct {
 	from, to time.Time
-}
-
-func timeToModelTime(t time.Time) pmodel.Time {
-	return pmodel.TimeFromUnixNano(t.UnixNano())
 }
 
 func buildTestStreams(labels string, tr timeRange) logproto.Stream {
@@ -105,7 +101,7 @@ func newChunk(stream logproto.Stream) chunk.Chunk {
                 _ = chk.Append(&e)
         }
         chk.Close()
-        c := chunk.NewChunk("fake", client.Fingerprint(lbs), lbs, chunkenc.NewFacade(chk, 0, 0), from, through)
+        c := chunk.NewChunk("data", client.Fingerprint(lbs), lbs, chunkenc.NewFacade(chk, 0, 0), from, through)
         // force the checksum creation
         if err := c.Encode(); err != nil {
                 panic(err)
@@ -188,7 +184,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 	flagext.DefaultValues(&boltdbShipperConfig)
 
 	// dates for activation of boltdb shippers
-	secondStoreDate := parseDate("2019-01-02")
+	storeDate := time.Now()
 
 	kconfig := &lstore.Config{
 		Config: storage.Config{
@@ -197,13 +193,6 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 		},
 		BoltDBShipperConfig: boltdbShipperConfig,
 	}
-
-        var mutex = &sync.Mutex{}
-
-        // nasty hack
-        mutex.Lock()
-        lstore.RegisterCustomIndexClients(&w.cfg.StorageConfig, nil)
-        defer mutex.Unlock()
 
         chunkStore, err := storage.NewStore(
 		kconfig.Config,
@@ -221,6 +210,8 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
         log.Println("chunkStore: %s", chunkStore)
 
+        var fooLabelsWithName = fmt.Sprintf("{service_name=\"%s\", __name__=\"service_name\"}",  span.Process.ServiceName)
+
         if chunkStore != nil {
   	        store, err := lstore.NewStore(*kconfig, w.cfg.SchemaConfig, chunkStore, nil)
                 if err != nil {
@@ -231,18 +222,8 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 	        chunksToBuildForTimeRanges := []timeRange{
 		        {
 			        // chunk just for first store
-			        secondStoreDate.Add(-3 * time.Hour),
-			        secondStoreDate.Add(-2 * time.Hour),
-		        },
-		        {
-			        // chunk overlapping both the stores
-			        secondStoreDate.Add(-time.Hour),
-			        secondStoreDate.Add(time.Hour),
-		        },
-		        {
-			        // chunk just for second store
-			        secondStoreDate.Add(2 * time.Hour),
-			        secondStoreDate.Add(3 * time.Hour),
+			        storeDate,
+			        storeDate.Add(4603000 * time.Microsecond),
 		        },
 	        }
 
