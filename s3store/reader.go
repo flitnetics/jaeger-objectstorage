@@ -99,7 +99,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
         )
 
         //var fooLabelsWithName = "{__name__=\"service_name\"}"
-        var fooLabelsWithName = "{service_name=\"customer\", __name__=\"service_name\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"servicessss\"}"
 
         if rChunkStore != nil {
                 rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
@@ -108,7 +108,8 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
                 }
 
                 chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-                log.Println("chunks data: %s", chunks)
+                log.Println("chunks data: %v+", chunks)
+                log.Println("len of chunks: %d", len(chunks))
         }
 
 	return ret, err

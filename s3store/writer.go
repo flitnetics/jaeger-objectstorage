@@ -206,7 +206,8 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
         log.Println("chunkStore: %s", chunkStore)
 
-        var fooLabelsWithName = fmt.Sprintf("{service_name=\"%s\", __name__=\"service_name\"}",  span.Process.ServiceName)
+        var serviceLabelsWithName = fmt.Sprintf("{service_name=\"%s\", __name__=\"servicessss\", env=\"prod\"}",  span.Process.ServiceName)
+        //var operationLabelsWithName = fmt.Sprintf("{operation_name\"%s\", __name__=\"operations\", env=\"prod\"}", span.OperationName)
 
         if chunkStore != nil {
   	        store, err := lstore.NewStore(*kconfig, w.cfg.SchemaConfig, chunkStore, nil)
@@ -224,15 +225,38 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 	        }
 
 	        // build and add chunks to the store
-	        addedChunkIDs := map[string]struct{}{}
+	        addedServicesChunkIDs := map[string]struct{}{}
+                //addedOperationsChunkIDs := map[string]struct{}{}
+               
+                existingChunks, err := store.Get(ctx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(serviceLabelsWithName)...)
 	        for _, tr := range chunksToBuildForTimeRanges {
-		        chk := newChunk(buildTestStreams(fooLabelsWithName, tr))
-                        err := store.PutOne(ctx, chk.From, chk.Through, chk)
-                        // err := store.Put(ctx, []chunk.Chunk{chk})
-                        if err != nil {
-                                log.Println("store PutOne error: %s", err)
-                        }
-		        addedChunkIDs[chk.ExternalKey()] = struct{}{}
+ 
+                        log.Println("existing chunk length: %s", len(existingChunks))
+                        if len(existingChunks) < 1 {
+                                serviceChk := newChunk(buildTestStreams(serviceLabelsWithName, tr))
+                                // service chunk
+                                err := store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
+                                                // err := store.Put(ctx, []chunk.Chunk{chk})
+                                if err != nil {
+                                       log.Println("store PutOne error: %s", err)
+                                }
+                                addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
+
+                         } else {
+                                for _, echunk := range existingChunks {
+                                        serviceChk := newChunk(buildTestStreams(serviceLabelsWithName, tr))
+                                        log.Println("echunk metric %v+", echunk.Metric[2])
+                                        if echunk.Metric[2] != serviceChk.Metric[2] {
+                                                // service chunk
+                                                err := store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
+                                                // err := store.Put(ctx, []chunk.Chunk{chk})
+                                                if err != nil {
+                                                        log.Println("store PutOne error: %s", err)
+                                                }
+                                                addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
+                                        }
+                                }
+                         }
 	        }
         }
 
