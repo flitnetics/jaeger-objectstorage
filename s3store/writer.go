@@ -229,34 +229,21 @@ func (w *Writer) WriteSpan(span *model.Span) error {
                 //addedOperationsChunkIDs := map[string]struct{}{}
                
                 existingChunks, err := store.Get(ctx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(serviceLabelsWithName)...)
+                for i := 0; i < len(existingChunks); i++ {
+                        log.Println("existing chunks: %s", existingChunks[i].Metric[2].Value)
+                }
 	        for _, tr := range chunksToBuildForTimeRanges {
- 
-                        log.Println("existing chunk length: %s", len(existingChunks))
-                        if len(existingChunks) < 1 {
-                                serviceChk := newChunk(buildTestStreams(serviceLabelsWithName, tr))
+
+                        serviceChk := newChunk(buildTestStreams(serviceLabelsWithName, tr))
+                        if !contains(existingChunks, serviceChk) {
                                 // service chunk
                                 err := store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
-                                                // err := store.Put(ctx, []chunk.Chunk{chk})
+                                // err := store.Put(ctx, []chunk.Chunk{chk})
                                 if err != nil {
-                                       log.Println("store PutOne error: %s", err)
+                                        log.Println("store PutOne error: %s", err)
                                 }
                                 addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
-
-                         } else {
-                                for _, echunk := range existingChunks {
-                                        serviceChk := newChunk(buildTestStreams(serviceLabelsWithName, tr))
-                                        log.Println("echunk metric %v+", echunk.Metric[2])
-                                        if echunk.Metric[2] != serviceChk.Metric[2] {
-                                                // service chunk
-                                                err := store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
-                                                // err := store.Put(ctx, []chunk.Chunk{chk})
-                                                if err != nil {
-                                                        log.Println("store PutOne error: %s", err)
-                                                }
-                                                addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
-                                        }
-                                }
-                         }
+                        }
 	        }
         }
 
@@ -264,6 +251,15 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 	insertLogs(w.db, span)
 
 	return nil
+}
+
+func contains(s []chunk.Chunk, e chunk.Chunk) bool {
+    for _, a := range s {
+        if a.Metric[2].Value == e.Metric[2].Value {
+            return true
+        }
+    }
+    return false
 }
 
 func parseDate(in string) time.Time {
