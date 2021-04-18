@@ -21,6 +21,7 @@ import (
         "github.com/cortexproject/cortex/pkg/chunk/storage"
         util_log "github.com/cortexproject/cortex/pkg/util/log"
         cortex_local "github.com/cortexproject/cortex/pkg/chunk/local"
+        "github.com/cortexproject/cortex/pkg/chunk"
 
         lstore "jaeger-s3/storage"
         "github.com/grafana/loki/pkg/util/validation"
@@ -56,16 +57,6 @@ func NewReader(db *pg.DB, cfg *types.Config, logger hclog.Logger) *Reader {
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	r.logger.Warn("GetServices called")
 
-	var services []Service
-	err := r.db.Model(&services).Order("service_name ASC").Select()
-	ret := make([]string, 0, len(services))
-
-	for _, service := range services {
-		if len(service.ServiceName) > 0 {
-			ret = append(ret, service.ServiceName)
-		}
-	}
-
         tempDir, err := ioutil.TempDir("", "boltdb-shippers")
         if err != nil {
                 log.Println("tempDir failure %s", err)
@@ -99,7 +90,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
         )
 
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"servicessss\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"zaihan6\"}"
 
         if rChunkStore != nil {
                 rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
@@ -113,9 +104,28 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
                 }
                 //log.Println("chunks data: %s", chunks)
                 log.Println("length of chunk data: %d", len(chunks))
+
+                ret := removeDuplicateValues(chunks)
+                return ret, err
         }
 
-	return ret, err
+	return nil, err
+}
+
+func removeDuplicateValues(a []chunk.Chunk) []string {
+    keys := make(map[string]bool)
+    list := []string{}
+ 
+    // If the key(values of the slice) is not equal
+    // to the already present value in new slice (list)
+    // then we append it. else we jump on another element.
+    for _, entry := range a {
+        if _, value := keys[entry.Metric[2].Value]; !value {
+            keys[entry.Metric[2].Value] = true
+            list = append(list, entry.Metric[2].Value)
+        }
+    }
+    return list
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger

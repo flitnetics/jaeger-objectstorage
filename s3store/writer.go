@@ -206,8 +206,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
         log.Println("chunkStore: %s", chunkStore)
 
-        var serviceLabelsWithName = fmt.Sprintf("{service_name=\"%s\", __name__=\"servicessss\", env=\"prod\"}",  span.Process.ServiceName)
-        //var operationLabelsWithName = fmt.Sprintf("{operation_name\"%s\", __name__=\"operations\", env=\"prod\"}", span.OperationName)
+        var labelsWithName = fmt.Sprintf("{service_name=\"%s\", operation_name=\"%s\", __name__=\"zaihan6\", env=\"prod\"}",  span.Process.ServiceName, span.OperationName)
 
         if chunkStore != nil {
   	        store, err := lstore.NewStore(*kconfig, w.cfg.SchemaConfig, chunkStore, nil)
@@ -226,15 +225,11 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
 	        // build and add chunks to the store
 	        addedServicesChunkIDs := map[string]struct{}{}
-                //addedOperationsChunkIDs := map[string]struct{}{}
                
-                existingChunks, err := store.Get(ctx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(serviceLabelsWithName)...)
-                for i := 0; i < len(existingChunks); i++ {
-                        log.Println("existing chunks: %s", existingChunks[i].Metric[2].Value)
-                }
+                existingChunks, err := store.Get(ctx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(labelsWithName)...)
 	        for _, tr := range chunksToBuildForTimeRanges {
 
-                        serviceChk := newChunk(buildTestStreams(serviceLabelsWithName, tr))
+                        serviceChk := newChunk(buildTestStreams(labelsWithName, tr))
                         if !contains(existingChunks, serviceChk) {
                                 // service chunk
                                 err := store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
