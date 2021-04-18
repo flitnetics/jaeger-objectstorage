@@ -100,19 +100,20 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 
                 chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
                 for i := 0; i < len(chunks); i++ {
-                         log.Println("chunk data: %s", chunks[i].Metric[2].Value)
+                         log.Println("chunk data: %s", chunks[i].Metric[2])
                 }
                 //log.Println("chunks data: %s", chunks)
                 log.Println("length of chunk data: %d", len(chunks))
 
-                ret := removeDuplicateValues(chunks)
+                ret := removeDuplicateValues(chunks, "service_name")
+
                 return ret, err
         }
 
 	return nil, err
 }
 
-func removeDuplicateValues(a []chunk.Chunk) []string {
+func removeDuplicateValues(a []chunk.Chunk, b string) []string {
     keys := make(map[string]bool)
     list := []string{}
  
@@ -121,8 +122,12 @@ func removeDuplicateValues(a []chunk.Chunk) []string {
     // then we append it. else we jump on another element.
     for _, entry := range a {
         if _, value := keys[entry.Metric[2].Value]; !value {
-            keys[entry.Metric[2].Value] = true
-            list = append(list, entry.Metric[2].Value)
+            // data type: service_name, operation_name, etc
+            if entry.Metric[2].Name == b {
+                    // assign key value to list
+                    keys[entry.Metric[2].Value] = true
+                    list = append(list, entry.Metric[2].Value)
+            }
         }
     }
     return list
@@ -130,16 +135,63 @@ func removeDuplicateValues(a []chunk.Chunk) []string {
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
-	var operations []Operation
-	err := r.db.Model(&operations).Order("operation_name ASC").Select()
-	ret := make([]spanstore.Operation, 0, len(operations))
-	for _, operation := range operations {
-		if len(operation.OperationName) > 0 {
-			ret = append(ret, spanstore.Operation{Name: operation.OperationName})
-		}
-	}
 
-	return ret, err
+        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
+        if err != nil {
+                log.Println("tempDir failure %s", err)
+        }
+
+        limits, err := validation.NewOverrides(validation.Limits{}, nil)
+        if err != nil {
+                log.Println("limits failure %s", err)
+        }
+
+        // config for BoltDB Shipper
+        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
+        flagext.DefaultValues(&boltdbShipperConfig)
+
+        kconfig := &lstore.Config{
+                Config: storage.Config{
+                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
+                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
+                },
+                BoltDBShipperConfig: boltdbShipperConfig,
+        }
+
+        rChunkStore, err := storage.NewStore(
+                kconfig.Config,
+                r.cfg.ChunkStoreConfig,
+                r.cfg.SchemaConfig.SchemaConfig,
+                limits,
+                nil,
+                nil,
+                util_log.Logger,
+        )
+
+        //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"zaihan6\"}"
+
+        if rChunkStore != nil {
+                rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
+                if err != nil {
+                       log.Println("read store error: %s", err)
+                }
+
+                chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+                operations := removeDuplicateValues(chunks, "operation_name")
+                log.Println("operations: %s", operations) 
+
+                ret := make([]spanstore.Operation, 0, len(operations))
+                for _, operation := range operations {
+                        if len(operation) > 0 {
+                                ret = append(ret, spanstore.Operation{Name: operation})
+                        }
+                }
+
+                return ret, err
+        }
+
+        return nil, err
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
@@ -153,20 +205,76 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
 		builder.andWhere(traceID.Low, "trace_id_high = ?")
 	}
 
-	var spans []Span
-	err := r.db.Model(&spans).Where(builder.where, builder.params...).Limit(1).Select()
-	ret := make([]*model.Span, 0, len(spans))
-	ret2 := make([]model.Trace_ProcessMapping, 0, len(spans))
-	for _, span := range spans {
-		ret = append(ret, toModelSpan(span))
-		ret2 = append(ret2, model.Trace_ProcessMapping{
-			ProcessID: span.ProcessID,
-			Process: model.Process{
-				ServiceName: span.Service.ServiceName,
-				Tags:        mapToModelKV(span.ProcessTags),
-			},
-		})
-	}
+        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
+        if err != nil {
+                log.Println("tempDir failure %s", err)
+        }
+
+        limits, err := validation.NewOverrides(validation.Limits{}, nil)
+        if err != nil {
+                log.Println("limits failure %s", err)
+        }
+
+        // config for BoltDB Shipper
+        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
+        flagext.DefaultValues(&boltdbShipperConfig)
+
+        kconfig := &lstore.Config{
+                Config: storage.Config{
+                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
+                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
+                },
+                BoltDBShipperConfig: boltdbShipperConfig,
+        }
+
+        rChunkStore, err := storage.NewStore(
+                kconfig.Config,
+                r.cfg.ChunkStoreConfig,
+                r.cfg.SchemaConfig.SchemaConfig,
+                limits,
+                nil,
+                nil,
+                util_log.Logger,
+        )
+
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"zaihan6\", trace_id_low=traceID.Low, trace_id_high=traceID.Low}"
+
+        rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
+        if err != nil {
+               log.Println("read store error: %s", err)
+        }
+
+        chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+
+        var spans []Span
+        ret := make([]*model.Span, 0, len(spans))
+        ret2 := make([]model.Trace_ProcessMapping, 0, len(spans))
+        for _, chunk := range chunks {
+                var serviceName string
+                var processId string
+                var processTags map[string]interface{}
+
+                if chunk.Metric[2].Name == "service_name" {
+                        serviceName = chunk.Metric[2].Value
+                }
+
+                if chunk.Metric[2].Name == "process_id" {
+                        processId = chunk.Metric[2].Value
+                }
+
+                if chunk.Metric[2].Name == "process_tags" {
+                        processTags = StrToMap(chunk.Metric[2].Value)
+                }
+
+                ret = append(ret, toModelSpan(chunk))
+                ret2 = append(ret2, model.Trace_ProcessMapping{
+                        ProcessID: processId,
+                        Process: model.Process{
+                                ServiceName: serviceName,
+                                Tags:        mapToModelKV(processTags),
+                        },
+                })
+        }
 
 	return &model.Trace{Spans: ret, ProcessMap: ret2}, err
 }
@@ -200,50 +308,49 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) *whereBuilder {
 
 // FindTraces retrieve traces that match the traceQuery
 func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	traceIDs, err := r.FindTraceIDs(ctx, query)
-	ret := make([]*model.Trace, 0, len(traceIDs))
-	if err != nil {
-		return ret, err
-	}
-	grouping := make(map[model.TraceID]*model.Trace)
-	//idsLow := make([]uint64, 0, len(traceIDs))
-	for _, traceID := range traceIDs {
-		//idsLow = append(idsLow, traceID.Low)
-		var spans []Span
-		err = r.db.Model(&spans).Where("trace_id_low = ?", traceID.Low /*TODO high*/).
-			//Join("JOIN operations AS operation ON operation.id = span.operation_id").
-			//Join("JOIN services AS service ON service.id = span.service_id").
-			Relation("Operation").Relation("Service").Order("start_time ASC").Select()
-		if err != nil {
-			return ret, err
-		}
-		for _, span := range spans {
-			modelSpan := toModelSpan(span)
-			trace, found := grouping[modelSpan.TraceID]
-			if !found {
-				trace = &model.Trace{
-					Spans:      make([]*model.Span, 0, len(spans)),
-					ProcessMap: make([]model.Trace_ProcessMapping, 0, len(spans)),
-				}
-				grouping[modelSpan.TraceID] = trace
-			}
-			trace.Spans = append(trace.Spans, modelSpan)
-			procMap := model.Trace_ProcessMapping{
-				ProcessID: span.ProcessID,
-				Process: model.Process{
-					ServiceName: span.Service.ServiceName,
-					Tags:        mapToModelKV(span.ProcessTags),
-				},
-			}
-			trace.ProcessMap = append(trace.ProcessMap, procMap)
-		}
-	}
+       traceIDs, err := r.FindTraceIDs(ctx, query)
+       ret := make([]*model.Trace, 0, len(traceIDs))
+       if err != nil {
+               return ret, err
+       }
+       grouping := make(map[model.TraceID]*model.Trace)
+       //idsLow := make([]uint64, 0, len(traceIDs))
+       for _, traceID := range traceIDs {
+               //idsLow = append(idsLow, traceID.Low)
+               var spans []Span
+               err = r.db.Model(&spans).Where("trace_id_low = ?", traceID.Low /*TODO high*/).
+                       //Join("JOIN operations AS operation ON operation.id = span.operation_id").
+                       //Join("JOIN services AS service ON service.id = span.service_id").
+                       Relation("Operation").Relation("Service").Order("start_time ASC").Select()
+               if err != nil {
+                       return ret, err
+               }
+               for _, span := range spans {
+                       modelSpan := toModelSpan(span)
+                       trace, found := grouping[modelSpan.TraceID]
+                       if !found {
+                               trace = &model.Trace{
+                                       Spans:      make([]*model.Span, 0, len(spans)),
+                                       ProcessMap: make([]model.Trace_ProcessMapping, 0, len(spans)),
+                               }
+                               grouping[modelSpan.TraceID] = trace
+                       }
+                       trace.Spans = append(trace.Spans, modelSpan)
+                       procMap := model.Trace_ProcessMapping{
+                               ProcessID: span.ProcessID,
+                               Process: model.Process{
+                                       ServiceName: span.Service.ServiceName,
+                                       Tags:        mapToModelKV(span.ProcessTags),
+                               },
+                       }
+                       trace.ProcessMap = append(trace.ProcessMap, procMap)
+               }
+       }
 
-	for _, trace := range grouping {
-		ret = append(ret, trace)
-	}
-
-	return ret, err
+       for _, trace := range grouping {
+               ret = append(ret, trace)
+       }
+       return ret, err
 }
 
 // FindTraceIDs retrieve traceIDs that match the traceQuery

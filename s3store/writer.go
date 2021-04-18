@@ -206,7 +206,18 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
         log.Println("chunkStore: %s", chunkStore)
 
-        var labelsWithName = fmt.Sprintf("{service_name=\"%s\", operation_name=\"%s\", __name__=\"zaihan6\", env=\"prod\"}",  span.Process.ServiceName, span.OperationName)
+        var labelsWithName = fmt.Sprintf("{__name__=\"zaihan6\", env=\"prod\", id=\"%s\", trace_id_low=\"%s\", trace_id_high=\"%s\", flags=\"%s\", duration=\"%s\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\"}",
+        span.SpanID,
+        span.TraceID.Low,
+        span.TraceID.High,
+        span.Flags,
+        span.Duration,
+        mapModelKV(span.Tags),
+        span.ProcessID,
+        mapModelKV(span.Process.Tags),
+        span.Warnings,
+        span.Process.ServiceName,
+        span.OperationName)
 
         if chunkStore != nil {
   	        store, err := lstore.NewStore(*kconfig, w.cfg.SchemaConfig, chunkStore, nil)
