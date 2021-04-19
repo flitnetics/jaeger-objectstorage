@@ -1,7 +1,16 @@
 package config
 
 import (
+        lstore "jaeger-s3/storage"
+        "jaeger-s3/storage/stores/shipper/compactor"
+ 
 	"github.com/spf13/viper"
+        "flag"
+        "log"
+
+	"github.com/cortexproject/cortex/pkg/chunk"
+
+	"github.com/grafana/loki/pkg/util/validation"
 )
 
 const (
@@ -10,6 +19,9 @@ const (
 	flagHost     = dbPrefix + "host"
 	flagUsername = dbPrefix + "username"
 	flagPassword = dbPrefix + "password"
+        flagDatabase = dbPrefix + "database"
+        flagAwsConfig = dbPrefix + "aws"
+        flagStorageConfig = dbPrefix + "storage_config"
 )
 
 // Configuration describes the options to customize the storage behavior
@@ -18,69 +30,48 @@ type Configuration struct {
 	Host     string `yaml:"host"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
+        Database string `yaml:"database"`
 
-	/*
-		Database string `yaml:"database"`
+	AWSStorageConfig string       `yaml:"aws"`
+	StorageConfig    string       `yaml:"storage_config"`
+}
 
-		// Network type, either tcp or unix.
-		// Default is tcp.
-		Network string `yaml:"network"`
+type Config struct {
+	Target      string `yaml:"target,omitempty"`
+	AuthEnabled bool   `yaml:"auth_enabled,omitempty"`
+	HTTPPrefix  string `yaml:"http_prefix"`
 
-		// ApplicationName is the application name. Used in logs on Pg side.
-		// Only available from pg-9.0.
-		ApplicationName string `yaml:"applicationName"`
+	StorageConfig    lstore.Config              `yaml:"storage_config,omitempty"`
+	ChunkStoreConfig chunk.StoreConfig           `yaml:"chunk_store_config,omitempty"`
+	TableManager     chunk.TableManagerConfig    `yaml:"table_manager,omitempty"`
+	SchemaConfig     lstore.SchemaConfig        `yaml:"schema_config,omitempty"`
+	LimitsConfig     validation.Limits           `yaml:"limits_config,omitempty"`
+	CompactorConfig  compactor.Config            `yaml:"compactor,omitempty"`
+}
 
-		// TLS config for secure connections.
-		//TLSConfig *tls.Config `yaml:"host"`
+func (c *Config) Validate() error {
+        if err := c.SchemaConfig.Validate(); err != nil {
+                log.Println("schema: %s", c.SchemaConfig)
+                log.Println("invalid schema config")
+        }
+        if err := c.StorageConfig.Validate(); err != nil {
+                log.Println("invalid storage config")
+        }
+        if err := c.StorageConfig.BoltDBShipperConfig.Validate(); err != nil {
+                log.Println("invalid boltdb-shipper config")
+        }
+        return nil
+}
 
-		// Dial timeout for establishing new connections.
-		// Default is 5 seconds.
-		DialTimeout time.Duration `yaml:"dialTimeout"`
+func (c *Config) RegisterFlags(f *flag.FlagSet) {
+	f.BoolVar(&c.AuthEnabled, "auth.enabled", true, "Set to false to disable auth.")
 
-		// Timeout for socket reads. If reached, commands will fail
-		// with a timeout instead of blocking.
-		ReadTimeout time.Duration `yaml:"readTimeout"`
-		// Timeout for socket writes. If reached, commands will fail
-		// with a timeout instead of blocking.
-		WriteTimeout time.Duration `yaml:"writeTimeout"`
-
-		// Maximum number of retries before giving up.
-		// Default is to not retry failed queries.
-		MaxRetries int `yaml:"maxRetries"`
-		// Whether to retry queries cancelled because of statement_timeout.
-		RetryStatementTimeout bool `yaml:"retryStatementTimeout"`
-		// Minimum backoff between each retry.
-		// Default is 250 milliseconds; -1 disables backoff.
-		MinRetryBackoff time.Duration `yaml:"minRetryBackoff"`
-		// Maximum backoff between each retry.
-		// Default is 4 seconds; -1 disables backoff.
-		MaxRetryBackoff time.Duration `yaml:"maxRetryBackoff"`
-
-		// Maximum number of socket connections.
-		// Default is 10 connections per every CPU as reported by runtime.NumCPU.
-		PoolSize int `yaml:"poolSize"`
-		// Minimum number of idle connections which is useful when establishing
-		// new connection is slow.
-		MinIdleConns int `yaml:"minIdleConns"`
-		// Connection age at which client retires (closes) the connection.
-		// It is useful with proxies like PgBouncer and HAProxy.
-		// Default is to not close aged connections.
-		MaxConnAge time.Duration `yaml:"maxConnAge"`
-		// Time for which client waits for free connection if all
-		// connections are busy before returning an error.
-		// Default is 30 seconds if ReadTimeOut is not defined, otherwise,
-		// ReadTimeout + 1 second.
-		PoolTimeout time.Duration `yaml:"poolTimeout"`
-		// Amount of time after which client closes idle connections.
-		// Should be less than server's timeout.
-		// Default is 5 minutes. -1 disables idle timeout check.
-		IdleTimeout time.Duration `yaml:"idleTimeout"`
-		// Frequency of idle checks made by idle connections reaper.
-		// Default is 1 minute. -1 disables idle connections reaper,
-		// but idle connections are still discarded by the client
-		// if IdleTimeout is set.
-		IdleCheckFrequency time.Duration `yaml:"idleCheckFrequency"`
-	*/
+	c.StorageConfig.RegisterFlags(f)
+	c.ChunkStoreConfig.RegisterFlags(f)
+	c.SchemaConfig.RegisterFlags(f)
+	c.TableManager.RegisterFlags(f)
+	c.LimitsConfig.RegisterFlags(f)
+	c.CompactorConfig.RegisterFlags(f)
 }
 
 // InitFromViper initializes the options struct with values from Viper
