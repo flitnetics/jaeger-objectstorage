@@ -1,0 +1,6 @@
+*.swo
+*.swp
+config-example.yaml
+*.orig
+all-in-one
+jaeger-s3

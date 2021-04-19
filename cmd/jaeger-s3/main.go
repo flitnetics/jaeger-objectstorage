@@ -1,17 +1,18 @@
 package main
 
 import (
-	"flag"
 	"os"
 	"sort"
-	"strings"
- 
+        "log"
+
 	"github.com/hashicorp/go-hclog"
 	"jaeger-s3/s3store"
         "jaeger-s3/config"
+        "jaeger-s3/config/types"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
         "github.com/spf13/viper"
+        "github.com/grafana/loki/pkg/cfg"
 )
 
 var configPath string
@@ -22,22 +23,18 @@ func main() {
 		Level: hclog.Warn, // Jaeger only captures >= Warn, so don't bother logging below Warn
 	})
 
-        flag.StringVar(&configPath, "config", "", "The absolute path to the S3 plugin's configuration file")
-        flag.Parse()
-
         v := viper.New()
         v.AutomaticEnv()
-        v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
-        if configPath != "" {
-                v.SetConfigFile(configPath)
+        v.SetConfigFile("./config-example.yaml")
+        v.ReadInConfig()
 
-                err := v.ReadInConfig()
-                if err != nil {
-                        logger.Error("failed to parse configuration file", "error", err)
-                        os.Exit(1)
-                }
+        var mconfig types.Config
+        if err := cfg.Parse(&mconfig); err != nil {
+                log.Println("failed to parse config %s", err)
         }
+
+        log.Println("bootup config: %s", &mconfig)
 
         conf := config.Configuration{}
         conf.InitFromViper(v)
@@ -52,7 +49,7 @@ func main() {
 	var closeStore func() error
 	var err error
 
-	store, closeStore, err = s3store.NewStore(&conf, logger)
+	store, closeStore, err = s3store.NewStore(&conf, &mconfig, logger)
 
 	grpc.Serve(store)
 

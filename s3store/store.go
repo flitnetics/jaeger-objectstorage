@@ -6,10 +6,12 @@ import (
 	"github.com/go-pg/pg/v9"
 	hclog "github.com/hashicorp/go-hclog"
         "jaeger-s3/config"
+        "jaeger-s3/config/types"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+        lstore "jaeger-s3/storage"
 )
 
 var (
@@ -23,15 +25,17 @@ type Store struct {
 	writer *Writer
 }
 
-func NewStore(conf *config.Configuration, logger hclog.Logger) (*Store, func() error, error) {
+func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger) (*Store, func() error, error) {
 	db := pg.Connect(&pg.Options{
 		Addr:     conf.Host,
 		User:     conf.Username,
 		Password: conf.Password,
-	})
+	}) 
 
-	reader := NewReader(db, logger)
-	writer := NewWriter(db, logger)
+        lstore.RegisterCustomIndexClients(&cfg.StorageConfig, nil)
+
+	reader := NewReader(db, cfg, logger)
+	writer := NewWriter(db, cfg, logger)
 
 	store := &Store{
 		db:     db,
