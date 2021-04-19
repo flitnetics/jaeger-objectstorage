@@ -6,6 +6,8 @@ import (
         "log"
         "path"
         "io/ioutil"
+        "fmt"
+        "strconv"
 
 	"github.com/go-pg/pg/v9"
         "github.com/weaveworks/common/user"
@@ -90,7 +92,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
         )
 
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"zaihan6\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
         if rChunkStore != nil {
                 rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
@@ -99,11 +101,6 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
                 }
 
                 chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-                for i := 0; i < len(chunks); i++ {
-                         log.Println("chunk data: %s", chunks[i].Metric[2])
-                }
-                //log.Println("chunks data: %s", chunks)
-                log.Println("length of chunk data: %d", len(chunks))
 
                 ret := removeDuplicateValues(chunks, "service_name")
 
@@ -169,7 +166,7 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
         )
 
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"zaihan6\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
         if rChunkStore != nil {
                 rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
@@ -179,7 +176,6 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
 
                 chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
                 operations := removeDuplicateValues(chunks, "operation_name")
-                log.Println("operations: %s", operations) 
 
                 ret := make([]spanstore.Operation, 0, len(operations))
                 for _, operation := range operations {
@@ -197,6 +193,7 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	builder := &whereBuilder{where: "", params: make([]interface{}, 0)}
+        log.Println("GetTrace executed")
 
 	if traceID.Low > 0 {
 		builder.andWhere(traceID.Low, "trace_id_low = ?")
@@ -237,7 +234,7 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
                 util_log.Logger,
         )
 
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"zaihan6\", trace_id_low=traceID.Low, trace_id_high=traceID.Low}"
+        var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%s\", trace_id_high=\"%s\"}", traceID.Low, traceID.Low)
 
         rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
         if err != nil {
@@ -279,35 +276,77 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
 	return &model.Trace{Spans: ret, ProcessMap: ret2}, err
 }
 
-func buildTraceWhere(query *spanstore.TraceQueryParameters) *whereBuilder {
-	builder := &whereBuilder{where: "", params: make([]interface{}, 0)}
+func buildTraceWhere(query *spanstore.TraceQueryParameters) string { 
+        log.Println("buildTraceWhere executed")
+        //var builder map[int]interface{}
+        var builder string
+
+        builder = "{"
+        builder = builder + "__name__=\"services\", env=\"prod\", "
 
 	if len(query.ServiceName) > 0 {
-		builder.andWhere(query.ServiceName, "service.service_name = ?")
+                builder = builder + fmt.Sprintf("service_name = \"%s\", ", query.ServiceName)
 	}
 	if len(query.OperationName) > 0 {
-		builder.andWhere(query.OperationName, "operation.operation_name = ?")
+                builder = builder + fmt.Sprintf("operation_name = \"%s\", ", query.OperationName)
 	}
-	if query.StartTimeMin.After(time.Time{}) {
-		builder.andWhere(query.StartTimeMin, "start_time >= ?")
-	}
+	//if query.StartTimeMin.After(time.Time{}) {
+        //        builder = builder + fmt.Sprintf("start_time > \"%s\", ", query.StartTimeMin)
+	//}
 	if query.StartTimeMax.After(time.Time{}) {
 		//TODO builder.andWhere(query.StartTimeMax, "start_time < ?")
 	}
 	if query.DurationMin > 0*time.Second {
-		builder.andWhere(query.DurationMin, "duration < ?")
+                builder = builder + fmt.Sprintf("duration < \"%d\", ", query.DurationMin)
 	}
 	if query.DurationMax > 0*time.Second {
-		builder.andWhere(query.DurationMax, "duration > ?")
+                builder = builder + fmt.Sprintf("duration > \"%d\"", query.DurationMax)
 	}
-
 	//TODO Tags map[]string
+        // Remove last two characters (space and comma)
+        builder = builder[:len(builder)-2]
+        builder = builder + "}"
+
+        log.Println("builder: %s", builder)
 
 	return builder
 }
 
 // FindTraces retrieve traces that match the traceQuery
 func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+        log.Println("FindTraces executed")
+        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
+        if err != nil {
+                log.Println("tempDir failure %s", err)
+        }
+
+        limits, err := validation.NewOverrides(validation.Limits{}, nil)
+        if err != nil {
+                log.Println("limits failure %s", err)
+        }
+
+        // config for BoltDB Shipper
+        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
+        flagext.DefaultValues(&boltdbShipperConfig)
+
+        kconfig := &lstore.Config{
+                Config: storage.Config{
+                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
+                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
+                },
+                BoltDBShipperConfig: boltdbShipperConfig,
+        }
+
+        rChunkStore, err := storage.NewStore(
+                kconfig.Config,
+                r.cfg.ChunkStoreConfig,
+                r.cfg.SchemaConfig.SchemaConfig,
+                limits,
+                nil,
+                nil,
+                util_log.Logger,
+        )
+
        traceIDs, err := r.FindTraceIDs(ctx, query)
        ret := make([]*model.Trace, 0, len(traceIDs))
        if err != nil {
@@ -317,16 +356,34 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        //idsLow := make([]uint64, 0, len(traceIDs))
        for _, traceID := range traceIDs {
                //idsLow = append(idsLow, traceID.Low)
-               var spans []Span
-               err = r.db.Model(&spans).Where("trace_id_low = ?", traceID.Low /*TODO high*/).
-                       //Join("JOIN operations AS operation ON operation.id = span.operation_id").
-                       //Join("JOIN services AS service ON service.id = span.service_id").
-                       Relation("Operation").Relation("Service").Order("start_time ASC").Select()
+               var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%s\"}", traceID.Low)
+               log.Println("traceID Low: %s", traceID.Low)
+
+               rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
                if err != nil {
-                       return ret, err
+                       log.Println("read store error: %s", err)
                }
-               for _, span := range spans {
-                       modelSpan := toModelSpan(span)
+
+               chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+               var spans []Span
+               for _, chunk := range chunks {
+                       var serviceName string
+                       var processId string
+                       var processTags map[string]interface{}
+
+                       if chunk.Metric[2].Name == "service_name" {
+                                serviceName = chunk.Metric[2].Value
+                       }
+                
+                       if chunk.Metric[2].Name == "process_id" {
+                                processId = chunk.Metric[2].Value
+                       }
+                
+                       if chunk.Metric[2].Name == "process_tags" {
+                                processTags = StrToMap(chunk.Metric[2].Value)
+                       }
+
+                       modelSpan := toModelSpan(chunk)
                        trace, found := grouping[modelSpan.TraceID]
                        if !found {
                                trace = &model.Trace{
@@ -337,10 +394,10 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                        }
                        trace.Spans = append(trace.Spans, modelSpan)
                        procMap := model.Trace_ProcessMapping{
-                               ProcessID: span.ProcessID,
+                               ProcessID: processId,
                                Process: model.Process{
-                                       ServiceName: span.Service.ServiceName,
-                                       Tags:        mapToModelKV(span.ProcessTags),
+                                       ServiceName: serviceName,
+                                       Tags:        mapToModelKV(processTags),
                                },
                        }
                        trace.ProcessMap = append(trace.ProcessMap, procMap)
@@ -357,18 +414,68 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) (ret []model.TraceID, err error) {
 	builder := buildTraceWhere(query)
 
-	limit := query.NumTraces
-	if limit <= 0 {
-		limit = 10
-	}
+        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
+        if err != nil {
+                log.Println("tempDir failure %s", err)
+        }
 
-	err = r.db.Model((*Span)(nil)).
-		Join("JOIN operations AS operation ON operation.id = span.operation_id").
-		Join("JOIN services AS service ON service.id = span.service_id").
-		ColumnExpr("distinct trace_id_low as Low, trace_id_high as High").
-		Where(builder.where, builder.params...).Limit(100 * limit).Select(&ret)
+        limits, err := validation.NewOverrides(validation.Limits{}, nil)
+        if err != nil {
+                log.Println("limits failure %s", err)
+        }
 
-	return ret, err
+        // config for BoltDB Shipper
+        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
+        flagext.DefaultValues(&boltdbShipperConfig)
+
+        kconfig := &lstore.Config{
+                Config: storage.Config{
+                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
+                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
+                },
+                BoltDBShipperConfig: boltdbShipperConfig,
+        }
+
+        rChunkStore, err := storage.NewStore(
+                kconfig.Config,
+                r.cfg.ChunkStoreConfig,
+                r.cfg.SchemaConfig.SchemaConfig,
+                limits,
+                nil,
+                nil,
+                util_log.Logger,
+        )
+
+        var fooLabelsWithName = builder
+
+        if rChunkStore != nil {
+                rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
+                if err != nil {
+                       log.Println("read store error: %s", err)
+                }
+
+                ret, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+                if err != nil {
+                        log.Println("rstore error: %s", err)
+                }
+ 
+                var trace model.TraceID
+                var traces []model.TraceID
+                for i := 0; i < len(ret); i++ {
+                        if ret[i].Metric[2].Name == "trace_id_low" {
+                                low, _ := strconv.ParseUint(ret[i].Metric[2].Value, 10, 64)
+                                trace.Low = low
+                        }
+                        if ret[i].Metric[2].Name == "trace_id_high" {
+                                high, _ := strconv.ParseUint(ret[i].Metric[2].Value, 10, 64)
+                                trace.High = high
+                        }
+                        traces = append(traces, trace) 
+                }
+
+	       return traces, err
+        }
+        return nil, err
 }
 
 // GetDependencies returns all inter-service dependencies
@@ -393,7 +500,7 @@ func timeToModelTime(t time.Time) pmodel.Time {
 func newMatchers(matchers string) []*labels.Matcher {
 	res, err := logql.ParseMatchers(matchers)
 	if err != nil {
-		panic(err)
+		log.Println("parseMatchers: %s", err)
 	}
 	return res
 }

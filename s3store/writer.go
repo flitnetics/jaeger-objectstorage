@@ -133,38 +133,6 @@ func (w *Writer) Close() error {
 
 // WriteSpan saves the span into PostgreSQL
 func (w *Writer) WriteSpan(span *model.Span) error {
-	service := &Service{
-		ServiceName: span.Process.ServiceName,
-	}
-	if _, err := w.db.Model(service).Where("service_name = ?", span.Process.ServiceName).
-		OnConflict("(service_name) DO NOTHING").Returning("id").Limit(1).SelectOrInsert(); err != nil {
-		return err
-	}
-	operation := &Operation{
-		OperationName: span.OperationName,
-	}
-	if _, err := w.db.Model(operation).Where("operation_name = ?", span.OperationName).
-		OnConflict("(operation_name) DO NOTHING").Returning("id").Limit(1).SelectOrInsert(); err != nil {
-		return err
-	}
-        //log.Println("span data: %v" , span)
-	if _, err := w.db.Model(&Span{
-		ID:          span.SpanID,
-		TraceIDLow:  span.TraceID.Low,
-		TraceIDHigh: span.TraceID.High,
-		OperationID: operation.ID,
-		Flags:       span.Flags,
-		StartTime:   span.StartTime,
-		Duration:    span.Duration,
-		Tags:        mapModelKV(span.Tags),
-		ServiceID:   service.ID,
-		ProcessID:   span.ProcessID,
-		ProcessTags: mapModelKV(span.Process.Tags),
-		Warnings:    span.Warnings,
-	}).OnConflict("(id) DO UPDATE").Insert(); err != nil {
-		return err
-	}
-
 	tempDir, err := ioutil.TempDir("", "boltdb-shippers")
         if err != nil {
                 log.Println("tempDir failure %s", err)
@@ -206,7 +174,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
         log.Println("chunkStore: %s", chunkStore)
 
-        var labelsWithName = fmt.Sprintf("{__name__=\"zaihan6\", env=\"prod\", id=\"%s\", trace_id_low=\"%s\", trace_id_high=\"%s\", flags=\"%s\", duration=\"%s\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\"}",
+        var labelsWithName = fmt.Sprintf("{__name__=\"services\", env=\"prod\", id=\"%s\", trace_id_low=\"%s\", trace_id_high=\"%s\", flags=\"%s\", duration=\"%s\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\"}",
         span.SpanID,
         span.TraceID.Low,
         span.TraceID.High,
