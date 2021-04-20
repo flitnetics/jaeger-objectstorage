@@ -27,7 +27,11 @@ func StrToMap(in string) map[string]interface{} {
     temp := make([]string, 2)
     for _, val := range array {
         temp = strings.Split(string(val), ":")
-        res[temp[0]] = temp[1]
+        if len(temp) > 2 {
+            res[temp[0]] = temp[1]
+        } else {
+            res[temp[0]] = ""
+        }
     }
     return res
 }
