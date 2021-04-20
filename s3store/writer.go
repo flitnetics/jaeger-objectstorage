@@ -143,36 +143,20 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
         addedServicesChunkIDs := map[string]struct{}{}
                
-        var labelsCustom = "{__name__=\"services\", env=\"prod\"}"
-        existingChunks, err := w.store.Get(ctx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(labelsCustom)...)
-        if err != nil {
-                log.Println("error getting existing chunks %s", existingChunks)
-        }
         //log.Println("existingChunks: %s", existingChunks)
 	for _, tr := range chunksToBuildForTimeRanges {
 
                 serviceChk := newChunk(buildTestStreams(labelsWithName, tr))
-                if !contains(existingChunks, serviceChk) {
-                        // service chunk
-                        err := w.store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
-                        // err := w.store.Put(ctx, []chunk.Chunk{chk})
-                        if err != nil {
-                                log.Println("store PutOne error: %s", err)
-                        }
-                        addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
+                // service chunk
+                err := w.store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
+                // err := w.store.Put(ctx, []chunk.Chunk{chk})
+                if err != nil {
+                        log.Println("store PutOne error: %s", err)
                 }
+                addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
 	}
 
 	return nil
-}
-
-func contains(s []chunk.Chunk, e chunk.Chunk) bool {
-    for _, a := range s {
-        if a.Metric[2].Value == e.Metric[2].Value {
-            return true
-        }
-    }
-    return false
 }
 
 func parseDate(in string) time.Time {
