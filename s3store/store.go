@@ -1,12 +1,22 @@
 package s3store
 
 import (
+        "io/ioutil"
 	"io"
+        "log"
+        "path"
 
 	"github.com/go-pg/pg/v9"
 	hclog "github.com/hashicorp/go-hclog"
         "jaeger-s3/config"
         "jaeger-s3/config/types"
+
+        "github.com/grafana/loki/pkg/util/validation"
+
+        "github.com/cortexproject/cortex/pkg/util/flagext"
+        "github.com/cortexproject/cortex/pkg/chunk/storage"
+        cortex_local "github.com/cortexproject/cortex/pkg/chunk/local"
+        util_log "github.com/cortexproject/cortex/pkg/util/log"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -34,8 +44,50 @@ func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger
 
         lstore.RegisterCustomIndexClients(&cfg.StorageConfig, nil)
 
-	reader := NewReader(db, cfg, logger)
-	writer := NewWriter(db, cfg, logger)
+        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
+        if err != nil {
+                log.Println("tempDir failure %s", err)
+        }
+
+        limits, err := validation.NewOverrides(validation.Limits{}, nil)
+        if err != nil {
+                log.Println("limits failure %s", err)
+        }
+
+        // config for BoltDB Shipper
+        boltdbShipperConfig := cfg.StorageConfig.BoltDBShipperConfig
+        flagext.DefaultValues(&boltdbShipperConfig)
+
+        kconfig := &lstore.Config{
+                Config: storage.Config{
+                        AWSStorageConfig: cfg.StorageConfig.AWSStorageConfig,
+                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
+                },
+                BoltDBShipperConfig: boltdbShipperConfig,
+        }
+
+        chunkStore, err := storage.NewStore(
+                kconfig.Config,
+                cfg.ChunkStoreConfig,
+                cfg.SchemaConfig.SchemaConfig,
+                limits,
+                nil,
+                nil,
+                util_log.Logger,
+        )
+
+        if err != nil {
+                log.Println("chunkStore error: %s", err)
+        }
+
+        //log.Println("chunkStore: %s", chunkStore)
+        dstore, err := lstore.NewStore(*kconfig, cfg.SchemaConfig, chunkStore, nil)
+        if err != nil {
+               log.Println("store error: %s", err)
+        }
+
+	reader := NewReader(db, cfg, dstore, logger)
+	writer := NewWriter(db, cfg, dstore, logger)
 
 	store := &Store{
 		db:     db,
