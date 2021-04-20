@@ -1,6 +1,10 @@
 This is the repository that contains S3 plugin for Jaeger.
 
 > IMPORTANT: This plugin is still under development.
+## About
+S3 storage support for Jaeger. 
+
+Google Cloud Storage (GCS), Amazon DynamoDB and Google BigTable **may** work with some changes to configuration file. Reports on testing on these storage backends is appreciated.
 ## Preresquities
 * Need my own fork of jaeger
 
