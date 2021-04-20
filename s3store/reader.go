@@ -43,14 +43,16 @@ type Reader struct {
 	db *pg.DB
         cfg    *types.Config
 
+        store  lstore.Store
 	logger hclog.Logger
 }
 
 // NewReader returns a new SpanReader for PostgreSQL v2.x.
-func NewReader(db *pg.DB, cfg *types.Config, logger hclog.Logger) *Reader {
+func NewReader(db *pg.DB, cfg *types.Config, store lstore.Store, logger hclog.Logger) *Reader {
 	return &Reader{
                 cfg: cfg,
 		db:     db,
+                store:  store,
 		logger: logger,
 	}
 }
@@ -59,58 +61,21 @@ func NewReader(db *pg.DB, cfg *types.Config, logger hclog.Logger) *Reader {
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	r.logger.Warn("GetServices called")
 
-        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
-        if err != nil {
-                log.Println("tempDir failure %s", err)
-        }
-
-        limits, err := validation.NewOverrides(validation.Limits{}, nil)
-        if err != nil {
-                log.Println("limits failure %s", err)
-        }
-
-        // config for BoltDB Shipper
-        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
-        flagext.DefaultValues(&boltdbShipperConfig)
-
-        kconfig := &lstore.Config{
-                Config: storage.Config{
-                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
-                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
-                },
-                BoltDBShipperConfig: boltdbShipperConfig,
-        }
-
-        rChunkStore, err := storage.NewStore(
-                kconfig.Config,
-                r.cfg.ChunkStoreConfig,
-                r.cfg.SchemaConfig.SchemaConfig,
-                limits,
-                nil,
-                nil,
-                util_log.Logger,
-        )
-
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
         var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
-        if rChunkStore != nil {
-                rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
-                if err != nil {
-                       log.Println("read store error: %s", err)
-                }
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        //log.Println("rchunk get: %s", chunks)
+        /* for i := 0; i < len(chunks); i++ {
+                log.Println(chunks[i].Metric[8].Value)
+        } */
 
-                chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        ret := removeServiceDuplicateValues(chunks, "service_name")
 
-                ret := removeDuplicateValues(chunks, "service_name")
-
-                return ret, err
-        }
-
-	return nil, err
+        return ret, err
 }
 
-func removeDuplicateValues(a []chunk.Chunk, b string) []string {
+func removeServiceDuplicateValues(a []chunk.Chunk, b string) []string {
     keys := make(map[string]bool)
     list := []string{}
  
@@ -118,12 +83,32 @@ func removeDuplicateValues(a []chunk.Chunk, b string) []string {
     // to the already present value in new slice (list)
     // then we append it. else we jump on another element.
     for _, entry := range a {
-        if _, value := keys[entry.Metric[2].Value]; !value {
+        if _, value := keys[entry.Metric[8].Value]; !value {
             // data type: service_name, operation_name, etc
-            if entry.Metric[2].Name == b {
+            if entry.Metric[8].Name == b {
                     // assign key value to list
-                    keys[entry.Metric[2].Value] = true
-                    list = append(list, entry.Metric[2].Value)
+                    keys[entry.Metric[8].Value] = true
+                    list = append(list, entry.Metric[8].Value)
+            }
+        }
+    }
+    return list
+}
+
+func removeOperationDuplicateValues(a []chunk.Chunk, b string) []string {
+    keys := make(map[string]bool)
+    list := []string{}
+
+    // If the key(values of the slice) is not equal
+    // to the already present value in new slice (list)
+    // then we append it. else we jump on another element.
+    for _, entry := range a {
+        if _, value := keys[entry.Metric[5].Value]; !value {
+            // data type: service_name, operation_name, etc
+            if entry.Metric[5].Name == b {
+                    // assign key value to list
+                    keys[entry.Metric[5].Value] = true
+                    list = append(list, entry.Metric[5].Value)
             }
         }
     }
@@ -175,7 +160,7 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
                 }
 
                 chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-                operations := removeDuplicateValues(chunks, "operation_name")
+                operations := removeOperationDuplicateValues(chunks, "operation_name")
 
                 ret := make([]spanstore.Operation, 0, len(operations))
                 for _, operation := range operations {
@@ -202,46 +187,9 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
 		builder.andWhere(traceID.Low, "trace_id_high = ?")
 	}
 
-        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
-        if err != nil {
-                log.Println("tempDir failure %s", err)
-        }
-
-        limits, err := validation.NewOverrides(validation.Limits{}, nil)
-        if err != nil {
-                log.Println("limits failure %s", err)
-        }
-
-        // config for BoltDB Shipper
-        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
-        flagext.DefaultValues(&boltdbShipperConfig)
-
-        kconfig := &lstore.Config{
-                Config: storage.Config{
-                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
-                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
-                },
-                BoltDBShipperConfig: boltdbShipperConfig,
-        }
-
-        rChunkStore, err := storage.NewStore(
-                kconfig.Config,
-                r.cfg.ChunkStoreConfig,
-                r.cfg.SchemaConfig.SchemaConfig,
-                limits,
-                nil,
-                nil,
-                util_log.Logger,
-        )
-
         var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%s\", trace_id_high=\"%s\"}", traceID.Low, traceID.Low)
 
-        rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
-        if err != nil {
-               log.Println("read store error: %s", err)
-        }
-
-        chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
 
         var spans []Span
         ret := make([]*model.Span, 0, len(spans))
@@ -251,16 +199,16 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
                 var processId string
                 var processTags map[string]interface{}
 
-                if chunk.Metric[2].Name == "service_name" {
-                        serviceName = chunk.Metric[2].Value
+                if chunk.Metric[8].Name == "service_name" {
+                        serviceName = chunk.Metric[8].Value
                 }
 
-                if chunk.Metric[2].Name == "process_id" {
-                        processId = chunk.Metric[2].Value
+                if chunk.Metric[6].Name == "process_id" {
+                        processId = chunk.Metric[6].Value
                 }
 
-                if chunk.Metric[2].Name == "process_tags" {
-                        processTags = StrToMap(chunk.Metric[2].Value)
+                if chunk.Metric[7].Name == "process_tags" {
+                        processTags = StrToMap(chunk.Metric[7].Value)
                 }
 
                 ret = append(ret, toModelSpan(chunk))
@@ -314,38 +262,7 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) string {
 
 // FindTraces retrieve traces that match the traceQuery
 func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-        log.Println("FindTraces executed")
-        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
-        if err != nil {
-                log.Println("tempDir failure %s", err)
-        }
-
-        limits, err := validation.NewOverrides(validation.Limits{}, nil)
-        if err != nil {
-                log.Println("limits failure %s", err)
-        }
-
-        // config for BoltDB Shipper
-        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
-        flagext.DefaultValues(&boltdbShipperConfig)
-
-        kconfig := &lstore.Config{
-                Config: storage.Config{
-                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
-                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
-                },
-                BoltDBShipperConfig: boltdbShipperConfig,
-        }
-
-        rChunkStore, err := storage.NewStore(
-                kconfig.Config,
-                r.cfg.ChunkStoreConfig,
-                r.cfg.SchemaConfig.SchemaConfig,
-                limits,
-                nil,
-                nil,
-                util_log.Logger,
-        )
+       log.Println("FindTraces executed")
 
        traceIDs, err := r.FindTraceIDs(ctx, query)
        ret := make([]*model.Trace, 0, len(traceIDs))
@@ -356,39 +273,39 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        //idsLow := make([]uint64, 0, len(traceIDs))
        for _, traceID := range traceIDs {
                //idsLow = append(idsLow, traceID.Low)
-               var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%s\"}", traceID.Low)
-               log.Println("traceID Low: %s", traceID.Low)
+               var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%d\"}", traceID.Low)
 
-               rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
                if err != nil {
                        log.Println("read store error: %s", err)
                }
 
-               chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-               var spans []Span
+               chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+               if err != nil {
+                       log.Println("Error getting data in reader: %s", err)
+               }
                for _, chunk := range chunks {
                        var serviceName string
                        var processId string
                        var processTags map[string]interface{}
 
-                       if chunk.Metric[2].Name == "service_name" {
-                                serviceName = chunk.Metric[2].Value
+                       if chunk.Metric[8].Name == "service_name" {
+                                serviceName = chunk.Metric[8].Value
                        }
                 
-                       if chunk.Metric[2].Name == "process_id" {
-                                processId = chunk.Metric[2].Value
+                       if chunk.Metric[6].Name == "process_id" {
+                                processId = chunk.Metric[6].Value
                        }
                 
-                       if chunk.Metric[2].Name == "process_tags" {
-                                processTags = StrToMap(chunk.Metric[2].Value)
+                       if chunk.Metric[7].Name == "process_tags" {
+                                processTags = StrToMap(chunk.Metric[7].Value)
                        }
 
                        modelSpan := toModelSpan(chunk)
                        trace, found := grouping[modelSpan.TraceID]
                        if !found {
                                trace = &model.Trace{
-                                       Spans:      make([]*model.Span, 0, len(spans)),
-                                       ProcessMap: make([]model.Trace_ProcessMapping, 0, len(spans)),
+                                       Spans:      make([]*model.Span, 0, len(chunks)),
+                                       ProcessMap: make([]model.Trace_ProcessMapping, 0, len(chunks)),
                                }
                                grouping[modelSpan.TraceID] = trace
                        }
@@ -407,6 +324,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        for _, trace := range grouping {
                ret = append(ret, trace)
        }
+
        return ret, err
 }
 
@@ -462,17 +380,17 @@ func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
                 var trace model.TraceID
                 var traces []model.TraceID
                 for i := 0; i < len(ret); i++ {
-                        if ret[i].Metric[2].Name == "trace_id_low" {
-                                low, _ := strconv.ParseUint(ret[i].Metric[2].Value, 10, 64)
+                        if ret[i].Metric[11].Name == "trace_id_low" {
+                                low, _ := strconv.ParseUint(ret[i].Metric[11].Value, 10, 64)
                                 trace.Low = low
                         }
-                        if ret[i].Metric[2].Name == "trace_id_high" {
-                                high, _ := strconv.ParseUint(ret[i].Metric[2].Value, 10, 64)
+                        if ret[i].Metric[11].Name == "trace_id_high" {
+                                high, _ := strconv.ParseUint(ret[i].Metric[11].Value, 10, 64)
                                 trace.High = high
                         }
                         traces = append(traces, trace) 
                 }
-
+ 
 	       return traces, err
         }
         return nil, err

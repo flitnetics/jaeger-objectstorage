@@ -3,8 +3,6 @@ package s3store
 import (
 	"io"
         "log"
-        "io/ioutil"
-        "path"
         "time"
         "context"
         "fmt"
@@ -15,7 +13,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 
 	"github.com/go-pg/pg/v9"
-	"github.com/go-pg/pg/v9/orm"
 
         "github.com/weaveworks/common/user"
 
@@ -26,15 +23,9 @@ import (
 	"github.com/grafana/loki/pkg/logql"
 	"github.com/grafana/loki/pkg/logproto"
 
-	"github.com/cortexproject/cortex/pkg/util/flagext"
-	"github.com/cortexproject/cortex/pkg/chunk/storage"
-	util_log "github.com/cortexproject/cortex/pkg/util/log"
 	"github.com/cortexproject/cortex/pkg/chunk"
-	cortex_local "github.com/cortexproject/cortex/pkg/chunk/local"
 	"github.com/cortexproject/cortex/pkg/ingester/client"
 
-	"github.com/grafana/loki/pkg/util/validation"
- 
         lstore "jaeger-s3/storage"
         "jaeger-s3/config/types"
 )
@@ -56,6 +47,7 @@ type Writer struct {
        logMeasurement      string
 
        cfg    *types.Config
+       store  lstore.Store
        logger hclog.Logger
 }
 
@@ -110,18 +102,13 @@ func newChunk(stream logproto.Stream) chunk.Chunk {
 }
 
 // NewWriter returns a Writer for PostgreSQL v2.x
-func NewWriter(db *pg.DB, cfg *types.Config, logger hclog.Logger) *Writer {
+func NewWriter(db *pg.DB, cfg *types.Config, store lstore.Store, logger hclog.Logger) *Writer {
 	w := &Writer{
 		db: db,
                 cfg: cfg,
+                store: store,
 		logger: logger,
 	}
-
-	db.CreateTable(&Service{}, &orm.CreateTableOptions{})
-	db.CreateTable(&Operation{}, &orm.CreateTableOptions{})
-	db.CreateTable(&Span{}, &orm.CreateTableOptions{})
-	db.CreateTable(&SpanRef{}, &orm.CreateTableOptions{})
-	db.CreateTable(&Log{}, &orm.CreateTableOptions{})
 
 	return w
 }
@@ -133,48 +120,8 @@ func (w *Writer) Close() error {
 
 // WriteSpan saves the span into PostgreSQL
 func (w *Writer) WriteSpan(span *model.Span) error {
-	tempDir, err := ioutil.TempDir("", "boltdb-shippers")
-        if err != nil {
-                log.Println("tempDir failure %s", err)
-        }
 
-	limits, err := validation.NewOverrides(validation.Limits{}, nil)
-        if err != nil {
-                log.Println("limits failure %s", err)
-        }
-
-	// config for BoltDB Shipper
-	boltdbShipperConfig := w.cfg.StorageConfig.BoltDBShipperConfig
-	flagext.DefaultValues(&boltdbShipperConfig)
-
-	// dates for activation of boltdb shippers
-	storeDate := time.Now()
-
-	kconfig := &lstore.Config{
-		Config: storage.Config{
-                        AWSStorageConfig: w.cfg.StorageConfig.AWSStorageConfig,
-			FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
-		},
-		BoltDBShipperConfig: boltdbShipperConfig,
-	}
-
-        chunkStore, err := storage.NewStore(
-		kconfig.Config,
-                w.cfg.ChunkStoreConfig,
-                w.cfg.SchemaConfig.SchemaConfig,
-		limits,
-                nil,
-		nil,
-		util_log.Logger,
-	)
-
-        if err != nil {
-                log.Println("chunkStore error: %s", err)
-        }
-
-        log.Println("chunkStore: %s", chunkStore)
-
-        var labelsWithName = fmt.Sprintf("{__name__=\"services\", env=\"prod\", id=\"%s\", trace_id_low=\"%s\", trace_id_high=\"%s\", flags=\"%s\", duration=\"%s\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\"}",
+        var labelsWithName = fmt.Sprintf("{__name__=\"services\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\"}",
         span.SpanID,
         span.TraceID.Low,
         span.TraceID.High,
@@ -187,42 +134,38 @@ func (w *Writer) WriteSpan(span *model.Span) error {
         span.Process.ServiceName,
         span.OperationName)
 
-        if chunkStore != nil {
-  	        store, err := lstore.NewStore(*kconfig, w.cfg.SchemaConfig, chunkStore, nil)
-                if err != nil {
-                       log.Println("store error: %s", err)
-                }
+        storeDate := time.Now()
 
-	        // time ranges adding a chunk for each store and a chunk which overlaps both the stores
-	        chunksToBuildForTimeRanges := []timeRange{
-		        {
-			        // chunk just for first store
-			        storeDate,
-			        storeDate.Add(span.Duration * time.Microsecond),
-		        },
-	        }
-
-	        // build and add chunks to the store
-	        addedServicesChunkIDs := map[string]struct{}{}
-               
-                existingChunks, err := store.Get(ctx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(labelsWithName)...)
-	        for _, tr := range chunksToBuildForTimeRanges {
-
-                        serviceChk := newChunk(buildTestStreams(labelsWithName, tr))
-                        if !contains(existingChunks, serviceChk) {
-                                // service chunk
-                                err := store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
-                                // err := store.Put(ctx, []chunk.Chunk{chk})
-                                if err != nil {
-                                        log.Println("store PutOne error: %s", err)
-                                }
-                                addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
-                        }
-	        }
+        // time ranges adding a chunk for each store and a chunk which overlaps both the stores
+        chunksToBuildForTimeRanges := []timeRange{
+	        {
+		        // chunk just for first store
+		        storeDate,
+		        storeDate.Add(span.Duration * time.Microsecond),
+	        },
         }
 
-	insertRefs(w.db, span)
-	insertLogs(w.db, span)
+        addedServicesChunkIDs := map[string]struct{}{}
+               
+        var labelsCustom = "{__name__=\"services\", env=\"prod\"}"
+        existingChunks, err := w.store.Get(ctx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(labelsCustom)...)
+        if err != nil {
+                log.Println("error getting existing chunks %s", existingChunks)
+        }
+        //log.Println("existingChunks: %s", existingChunks)
+	for _, tr := range chunksToBuildForTimeRanges {
+
+                serviceChk := newChunk(buildTestStreams(labelsWithName, tr))
+                if !contains(existingChunks, serviceChk) {
+                        // service chunk
+                        err := w.store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
+                        // err := w.store.Put(ctx, []chunk.Chunk{chk})
+                        if err != nil {
+                                log.Println("store PutOne error: %s", err)
+                        }
+                        addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
+                }
+	}
 
 	return nil
 }
