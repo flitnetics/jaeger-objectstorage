@@ -142,8 +142,6 @@ func (w *Writer) WriteSpan(span *model.Span) error {
         }
 
         addedServicesChunkIDs := map[string]struct{}{}
-               
-        //log.Println("existingChunks: %s", existingChunks)
 	for _, tr := range chunksToBuildForTimeRanges {
 
                 serviceChk := newChunk(buildTestStreams(labelsWithName, tr))
