@@ -34,56 +34,56 @@ func StrToMap(in string) map[string]interface{} {
 
 func toModelSpan(chunk chunk.Chunk) *model.Span {
         var id model.SpanID
-        if (chunk.Metric[2].Name == "id") {
-                conv, _ := strconv.ParseUint(chunk.Metric[2].Value, 10, 64)
+        if (chunk.Metric[4].Name == "id") {
+                conv, _ := strconv.ParseUint(chunk.Metric[4].Value, 10, 64)
                 id = model.NewSpanID(conv)
         }
 
         var trace_id_low uint64
-        if (chunk.Metric[2].Name == "trace_id_low") {
-                trace_id_low, _ = strconv.ParseUint(chunk.Metric[2].Value, 10, 64)
+        if (chunk.Metric[11].Name == "trace_id_low") {
+                trace_id_low, _ = strconv.ParseUint(chunk.Metric[11].Value, 10, 64)
         }
 
         var trace_id_high uint64
-        if (chunk.Metric[2].Name == "trace_id_high") {
-                trace_id_high, _ = strconv.ParseUint(chunk.Metric[2].Value, 10, 64)
+        if (chunk.Metric[10].Name == "trace_id_high") {
+                trace_id_high, _ = strconv.ParseUint(chunk.Metric[10].Value, 10, 64)
         }
 
         var operation_name string 
-        if (chunk.Metric[2].Name == "operation_name") {
-                operation_name = chunk.Metric[2].Value
+        if (chunk.Metric[5].Name == "operation_name") {
+                operation_name = chunk.Metric[5].Value
         }
 
         var flags model.Flags
-        if (chunk.Metric[2].Name == "flags") {
-                conv, _ := strconv.ParseUint(chunk.Metric[2].Value, 10, 64)
+        if (chunk.Metric[3].Name == "flags") {
+                conv, _ := strconv.ParseUint(chunk.Metric[3].Value, 10, 64)
                 flags = model.Flags(conv)
         }
          
         var duration time.Duration
-        if (chunk.Metric[2].Name == "duration") {
-                conv, _ := strconv.ParseUint(chunk.Metric[2].Value, 10, 64)
+        if (chunk.Metric[1].Name == "duration") {
+                conv, _ := strconv.ParseUint(chunk.Metric[1].Value, 10, 64)
                 duration = time.Duration(conv)
         }
 
         var tags map[string]interface{}
-        if (chunk.Metric[2].Name == "tags") {
-                tags = StrToMap(chunk.Metric[2].Value)
+        if (chunk.Metric[9].Name == "tags") {
+                tags = StrToMap(chunk.Metric[9].Value)
         }
 
         var process_id string
-        if (chunk.Metric[2].Name == "process_id") {
-                process_id = chunk.Metric[2].Value
+        if (chunk.Metric[6].Name == "process_id") {
+                process_id = chunk.Metric[6].Value
         }
 
         var service_name string
-        if (chunk.Metric[2].Name == "service_name") {
-                service_name = chunk.Metric[2].Value
+        if (chunk.Metric[8].Name == "service_name") {
+                service_name = chunk.Metric[8].Value
         }
 
         var process_tags map[string]interface{}
-        if (chunk.Metric[2].Name == "process_tags") {
-                process_tags = StrToMap(chunk.Metric[2].Value)
+        if (chunk.Metric[7].Name == "process_tags") {
+                process_tags = StrToMap(chunk.Metric[7].Value)
         }
 
         /* var warnings string
