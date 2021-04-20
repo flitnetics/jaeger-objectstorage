@@ -219,12 +219,12 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                return ret, err
        }
        grouping := make(map[model.TraceID]*model.Trace)
-       //idsLow := make([]uint64, 0, len(traceIDs))
        for _, traceID := range traceIDs {
-               //idsLow = append(idsLow, traceID.Low)
                var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%d\"}", traceID.Low)
 
                chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+               //log.Println("traceID data %s", chunks)
+
                if err != nil {
                        log.Println("Error getting data in reader: %s", err)
                }
