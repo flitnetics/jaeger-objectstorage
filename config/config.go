@@ -1,8 +1,8 @@
 package config
 
 import (
-        lstore "jaeger-s3/storage"
-        "jaeger-s3/storage/stores/shipper/compactor"
+        lstore "github.com/grafana/loki/pkg/storage"
+        "github.com/grafana/loki/pkg/storage/stores/shipper/compactor"
  
 	"github.com/spf13/viper"
         "flag"

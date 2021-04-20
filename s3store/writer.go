@@ -26,7 +26,7 @@ import (
 	"github.com/cortexproject/cortex/pkg/chunk"
 	"github.com/cortexproject/cortex/pkg/ingester/client"
 
-        lstore "jaeger-s3/storage"
+        lstore "github.com/grafana/loki/pkg/storage"
         "jaeger-s3/config/types"
 )
 
