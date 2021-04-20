@@ -4,12 +4,9 @@ import (
 	"context"
 	"time"
         "log"
-        "path"
-        "io/ioutil"
         "fmt"
         "strconv"
 
-	"github.com/go-pg/pg/v9"
         "github.com/weaveworks/common/user"
 
 	hclog "github.com/hashicorp/go-hclog"
@@ -19,14 +16,9 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 
-        "github.com/cortexproject/cortex/pkg/util/flagext"
-        "github.com/cortexproject/cortex/pkg/chunk/storage"
-        util_log "github.com/cortexproject/cortex/pkg/util/log"
-        cortex_local "github.com/cortexproject/cortex/pkg/chunk/local"
         "github.com/cortexproject/cortex/pkg/chunk"
 
         lstore "github.com/grafana/loki/pkg/storage"
-        "github.com/grafana/loki/pkg/util/validation"
 	"github.com/grafana/loki/pkg/logql"
 
         "jaeger-s3/config/types"
@@ -40,7 +32,6 @@ var (
 
 // Reader can query for and load traces from PostgreSQL v2.x.
 type Reader struct {
-	db *pg.DB
         cfg    *types.Config
 
         store  lstore.Store
@@ -48,10 +39,9 @@ type Reader struct {
 }
 
 // NewReader returns a new SpanReader for PostgreSQL v2.x.
-func NewReader(db *pg.DB, cfg *types.Config, store lstore.Store, logger hclog.Logger) *Reader {
+func NewReader(cfg *types.Config, store lstore.Store, logger hclog.Logger) *Reader {
 	return &Reader{
                 cfg: cfg,
-		db:     db,
                 store:  store,
 		logger: logger,
 	}
@@ -118,61 +108,20 @@ func removeOperationDuplicateValues(a []chunk.Chunk, b string) []string {
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 
-        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
-        if err != nil {
-                log.Println("tempDir failure %s", err)
-        }
-
-        limits, err := validation.NewOverrides(validation.Limits{}, nil)
-        if err != nil {
-                log.Println("limits failure %s", err)
-        }
-
-        // config for BoltDB Shipper
-        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
-        flagext.DefaultValues(&boltdbShipperConfig)
-
-        kconfig := &lstore.Config{
-                Config: storage.Config{
-                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
-                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
-                },
-                BoltDBShipperConfig: boltdbShipperConfig,
-        }
-
-        rChunkStore, err := storage.NewStore(
-                kconfig.Config,
-                r.cfg.ChunkStoreConfig,
-                r.cfg.SchemaConfig.SchemaConfig,
-                limits,
-                nil,
-                nil,
-                util_log.Logger,
-        )
-
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
         var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
-        if rChunkStore != nil {
-                rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
-                if err != nil {
-                       log.Println("read store error: %s", err)
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        operations := removeOperationDuplicateValues(chunks, "operation_name")
+
+        ret := make([]spanstore.Operation, 0, len(operations))
+        for _, operation := range operations {
+                if len(operation) > 0 {
+                        ret = append(ret, spanstore.Operation{Name: operation})
                 }
-
-                chunks, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-                operations := removeOperationDuplicateValues(chunks, "operation_name")
-
-                ret := make([]spanstore.Operation, 0, len(operations))
-                for _, operation := range operations {
-                        if len(operation) > 0 {
-                                ret = append(ret, spanstore.Operation{Name: operation})
-                        }
-                }
-
-                return ret, err
         }
 
-        return nil, err
+        return ret, err
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
@@ -275,10 +224,6 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                //idsLow = append(idsLow, traceID.Low)
                var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%d\"}", traceID.Low)
 
-               if err != nil {
-                       log.Println("read store error: %s", err)
-               }
-
                chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-5 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
                if err != nil {
                        log.Println("Error getting data in reader: %s", err)
@@ -332,73 +277,33 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) (ret []model.TraceID, err error) {
 	builder := buildTraceWhere(query)
 
-        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
-        if err != nil {
-                log.Println("tempDir failure %s", err)
-        }
-
-        limits, err := validation.NewOverrides(validation.Limits{}, nil)
-        if err != nil {
-                log.Println("limits failure %s", err)
-        }
-
-        // config for BoltDB Shipper
-        boltdbShipperConfig := r.cfg.StorageConfig.BoltDBShipperConfig
-        flagext.DefaultValues(&boltdbShipperConfig)
-
-        kconfig := &lstore.Config{
-                Config: storage.Config{
-                        AWSStorageConfig: r.cfg.StorageConfig.AWSStorageConfig,
-                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
-                },
-                BoltDBShipperConfig: boltdbShipperConfig,
-        }
-
-        rChunkStore, err := storage.NewStore(
-                kconfig.Config,
-                r.cfg.ChunkStoreConfig,
-                r.cfg.SchemaConfig.SchemaConfig,
-                limits,
-                nil,
-                nil,
-                util_log.Logger,
-        )
-
         var fooLabelsWithName = builder
 
-        if rChunkStore != nil {
-                rstore, err := lstore.NewStore(*kconfig, r.cfg.SchemaConfig, rChunkStore, nil)
-                if err != nil {
-                       log.Println("read store error: %s", err)
-                }
-
-                ret, err := rstore.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-                if err != nil {
-                        log.Println("rstore error: %s", err)
-                }
- 
-                var trace model.TraceID
-                var traces []model.TraceID
-                for i := 0; i < len(ret); i++ {
-                        if ret[i].Metric[11].Name == "trace_id_low" {
-                                low, _ := strconv.ParseUint(ret[i].Metric[11].Value, 10, 64)
-                                trace.Low = low
-                        }
-                        if ret[i].Metric[11].Name == "trace_id_high" {
-                                high, _ := strconv.ParseUint(ret[i].Metric[11].Value, 10, 64)
-                                trace.High = high
-                        }
-                        traces = append(traces, trace) 
-                }
- 
-	       return traces, err
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        if err != nil {
+                log.Println("rstore error: %s", err)
         }
-        return nil, err
+ 
+        var trace model.TraceID
+        var traces []model.TraceID
+        for i := 0; i < len(chunks); i++ {
+                if chunks[i].Metric[11].Name == "trace_id_low" {
+                        low, _ := strconv.ParseUint(chunks[i].Metric[11].Value, 10, 64)
+                        trace.Low = low
+                }
+                if chunks[i].Metric[11].Name == "trace_id_high" {
+                        high, _ := strconv.ParseUint(chunks[i].Metric[11].Value, 10, 64)
+                        trace.High = high
+                }
+                traces = append(traces, trace) 
+        }
+ 
+	return traces, err
 }
 
 // GetDependencies returns all inter-service dependencies
 func (r *Reader) GetDependencies(endTs time.Time, lookback time.Duration) (ret []model.DependencyLink, err error) {
-	err = r.db.Model((*SpanRef)(nil)).
+	/* err = r.db.Model((*SpanRef)(nil)).
 		ColumnExpr("source_spans.service_name as parent").
 		ColumnExpr("child_spans.service_name as child").
 		ColumnExpr("count(*) as call_count").
@@ -408,7 +313,8 @@ func (r *Reader) GetDependencies(endTs time.Time, lookback time.Duration) (ret [
 		Group("child_spans.service_name").
 		Select(&ret)
 
-	return ret, err
+	return ret, err */
+        return nil, err
 }
 
 func timeToModelTime(t time.Time) pmodel.Time {
