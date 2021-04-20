@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-        lstore "jaeger-s3/storage"
+        lstore "github.com/grafana/loki/pkg/storage"
 )
 
 var (

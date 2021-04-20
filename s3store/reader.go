@@ -25,7 +25,7 @@ import (
         cortex_local "github.com/cortexproject/cortex/pkg/chunk/local"
         "github.com/cortexproject/cortex/pkg/chunk"
 
-        lstore "jaeger-s3/storage"
+        lstore "github.com/grafana/loki/pkg/storage"
         "github.com/grafana/loki/pkg/util/validation"
 	"github.com/grafana/loki/pkg/logql"
 
