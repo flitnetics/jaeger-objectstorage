@@ -279,7 +279,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                        log.Println("read store error: %s", err)
                }
 
-               chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+               chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-5 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
                if err != nil {
                        log.Println("Error getting data in reader: %s", err)
                }
