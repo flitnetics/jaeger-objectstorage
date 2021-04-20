@@ -10,6 +10,7 @@ Need to compile my own fork of jaeger (develop branch)
 git clone -b develop git@github.com:muhammadn/jaeger.git
 cd /path/to/jaeger
 go build -tags ui ./cmd/all-in-one/main.go
+cp main /path/to/jaeger-s3/all-in-one
 ```
 
 In order to compile the plugin from source code you can use `go build`:
