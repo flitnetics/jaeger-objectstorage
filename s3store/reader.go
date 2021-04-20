@@ -224,7 +224,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                //idsLow = append(idsLow, traceID.Low)
                var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%d\"}", traceID.Low)
 
-               chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-5 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+               chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
                if err != nil {
                        log.Println("Error getting data in reader: %s", err)
                }
