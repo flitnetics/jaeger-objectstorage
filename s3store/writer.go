@@ -12,8 +12,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 
-	"github.com/go-pg/pg/v9"
-
         "github.com/weaveworks/common/user"
 
 	pmodel "github.com/prometheus/common/model"
@@ -41,7 +39,6 @@ var (
 
 // Writer handles all writes to PostgreSQL 2.x for the Jaeger data model
 type Writer struct {
-       db                  *pg.DB
        spanMeasurement     string
        spanMetaMeasurement string
        logMeasurement      string
@@ -102,9 +99,8 @@ func newChunk(stream logproto.Stream) chunk.Chunk {
 }
 
 // NewWriter returns a Writer for PostgreSQL v2.x
-func NewWriter(db *pg.DB, cfg *types.Config, store lstore.Store, logger hclog.Logger) *Writer {
+func NewWriter(cfg *types.Config, store lstore.Store, logger hclog.Logger) *Writer {
 	w := &Writer{
-		db: db,
                 cfg: cfg,
                 store: store,
 		logger: logger,
@@ -186,75 +182,3 @@ func parseDate(in string) time.Time {
 	}
 	return t
 }
-
-func insertLogs(db *pg.DB, input *model.Span) (ret []*Log, err error) {
-	ret = make([]*Log, 0, len(input.Logs))
-	if input.Logs == nil {
-		return ret, err
-	}
-	for _, log := range input.Logs {
-		itm := &Log{SpanID: input.SpanID, Timestamp: log.Timestamp, Fields: mapModelKV(log.Fields)}
-		ret = append(ret, itm)
-
-		if _, err = db.Model(itm).Insert(); err != nil {
-			return ret, err
-		}
-	}
-	return ret, err
-}
-
-func insertRefs(db *pg.DB, input *model.Span) (ret []*SpanRef, err error) {
-	ret = make([]*SpanRef, 0, len(input.References))
-	if input.References == nil {
-		return ret, err
-	}
-	for _, ref := range input.References {
-		if ref.SpanID > 0 {
-			itm := &SpanRef{SourceSpanID: input.SpanID, ChildSpanID: ref.SpanID, TraceIDLow: ref.TraceID.Low, TraceIDHigh: ref.TraceID.High, RefType: ref.RefType}
-			ret = append(ret, itm)
-
-			if _, err := db.Model(itm).Insert(); err != nil {
-				return ret, err
-			}
-		}
-	}
-	return ret, err
-}
-
-/*func (w *Writer) batchAndWrite() {
-	defer w.writeWG.Done()
-
-	batch := make([]string, 0, common.MaxFlushPoints)
-	var t <-chan time.Time
-
-	for {
-		select {
-		case point, ok := <-w.writeCh:
-			if !ok {
-				if len(batch) > 0 {
-					w.writeBatch(batch)
-					return
-				}
-			}
-
-			if t == nil {
-				t = time.After(common.MaxFlushInterval)
-			}
-
-			batch = append(batch, point)
-
-			if len(batch) == cap(batch) {
-				//w.writeBatch(batch)
-				batch = batch[:0]
-				t = nil
-			}
-
-		case <-t:
-			//w.writeBatch(batch)
-			batch = batch[:0]
-			t = nil
-		}
-	}
-}
-*/
-

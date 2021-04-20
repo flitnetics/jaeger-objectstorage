@@ -6,7 +6,6 @@ import (
         "log"
         "path"
 
-	"github.com/go-pg/pg/v9"
 	hclog "github.com/hashicorp/go-hclog"
         "jaeger-s3/config"
         "jaeger-s3/config/types"
@@ -30,18 +29,11 @@ var (
 )
 
 type Store struct {
-	db     *pg.DB
 	reader *Reader
 	writer *Writer
 }
 
 func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger) (*Store, func() error, error) {
-	db := pg.Connect(&pg.Options{
-		Addr:     conf.Host,
-		User:     conf.Username,
-		Password: conf.Password,
-	}) 
-
         lstore.RegisterCustomIndexClients(&cfg.StorageConfig, nil)
 
         tempDir, err := ioutil.TempDir("", "boltdb-shippers")
@@ -86,11 +78,10 @@ func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger
                log.Println("store error: %s", err)
         }
 
-	reader := NewReader(db, cfg, dstore, logger)
-	writer := NewWriter(db, cfg, dstore, logger)
+	reader := NewReader(cfg, dstore, logger)
+	writer := NewWriter(cfg, dstore, logger)
 
 	store := &Store{
-		db:     db,
 		reader: reader,
 		writer: writer,
 	}
@@ -101,11 +92,11 @@ func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger
 // Close writer and DB
 func (s *Store) Close() error {
 	err2 := s.writer.Close()
-	err1 := s.db.Close()
+	//err1 := s.db.Close()
 	//s.reader.Close()
-	if err1 != nil {
-		return err1
-	}
+	//if err1 != nil {
+	//	return err1
+	//}
 	return err2
 }
 
