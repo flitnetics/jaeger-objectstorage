@@ -87,11 +87,6 @@ func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger
 // Close writer and DB
 func (s *Store) Close() error {
 	err2 := s.writer.Close()
-	//err1 := s.db.Close()
-	//s.reader.Close()
-	//if err1 != nil {
-	//	return err1
-	//}
 	return err2
 }
 
