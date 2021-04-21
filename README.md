@@ -5,6 +5,7 @@ This is the repository that contains S3 plugin for Jaeger.
 S3 storage support for Jaeger. 
 
 Google Cloud Storage (GCS), Microsoft Azure Blob Storage, Amazon DynamoDB and Google BigTable **may** work with some changes to configuration file. Reports on testing on these storage backends is appreciated.
+
 ## Preresquities
 * Need my own fork of jaeger
 
@@ -43,27 +44,6 @@ schema_config:
         prefix: index_
         period: 24h
       row_shards: 10
-    - from: 2019-10-24
-      store: boltdb-shipper
-      object_store: s3
-      schema: v9
-      index:
-        prefix: index_
-        period: 24h
-    - from: 2020-10-24
-      store: boltdb-shipper
-      object_store: s3
-      schema: v9
-      index:
-        prefix: index_
-        period: 24h
-    - from: 2017-10-24
-      store: boltdb-shipper
-      object_store: s3
-      schema: v9
-      index:
-        prefix: index_
-        period: 24h
 
 storage_config:
   aws:
