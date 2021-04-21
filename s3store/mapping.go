@@ -46,12 +46,12 @@ func toModelSpan(chunk chunk.Chunk) *model.Span {
         }
 
         var trace_id_low uint64
-        if (chunk.Metric[11].Name == "trace_id_low") {
+        if (chunk.Metric[12].Name == "trace_id_low") {
                 trace_id_low, _ = strconv.ParseUint(chunk.Metric[12].Value, 10, 64)
         }
 
         var trace_id_high uint64
-        if (chunk.Metric[10].Name == "trace_id_high") {
+        if (chunk.Metric[11].Name == "trace_id_high") {
                 trace_id_high, _ = strconv.ParseUint(chunk.Metric[11].Value, 10, 64)
         }
 
