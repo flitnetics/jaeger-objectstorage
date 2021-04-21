@@ -8,6 +8,10 @@ import (
         "flag"
         "log"
 
+        "github.com/cortexproject/cortex/pkg/chunk/aws"
+        "github.com/cortexproject/cortex/pkg/chunk/azure"
+        "github.com/cortexproject/cortex/pkg/chunk/gcp"
+        "github.com/cortexproject/cortex/pkg/chunk/local"
 	"github.com/cortexproject/cortex/pkg/chunk"
 
 	"github.com/grafana/loki/pkg/util/validation"
@@ -32,7 +36,11 @@ type Configuration struct {
 	Password string `yaml:"password"`
         Database string `yaml:"database"`
 
-	AWSStorageConfig string       `yaml:"aws"`
+	AWSStorageConfig  aws.StorageConfig      `yaml:"aws"`
+        AzureStorageConfig     azure.BlobStorageConfig `yaml:"azure"`
+        GCPStorageConfig       gcp.Config              `yaml:"bigtable"`
+        GCSConfig              gcp.GCSConfig           `yaml:"gcs"`
+        FSConfig               local.FSConfig          `yaml:"filesystem"`
 	StorageConfig    string       `yaml:"storage_config"`
 }
 
