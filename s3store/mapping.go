@@ -6,6 +6,8 @@ import (
         "strconv"
         "time"
         "strings"
+        _ "log"
+        "fmt"
 )
 
 type whereBuilder struct {
@@ -45,12 +47,12 @@ func toModelSpan(chunk chunk.Chunk) *model.Span {
 
         var trace_id_low uint64
         if (chunk.Metric[11].Name == "trace_id_low") {
-                trace_id_low, _ = strconv.ParseUint(chunk.Metric[11].Value, 10, 64)
+                trace_id_low, _ = strconv.ParseUint(chunk.Metric[12].Value, 10, 64)
         }
 
         var trace_id_high uint64
         if (chunk.Metric[10].Name == "trace_id_high") {
-                trace_id_high, _ = strconv.ParseUint(chunk.Metric[10].Value, 10, 64)
+                trace_id_high, _ = strconv.ParseUint(chunk.Metric[11].Value, 10, 64)
         }
 
         var operation_name string 
@@ -71,8 +73,8 @@ func toModelSpan(chunk chunk.Chunk) *model.Span {
         }
 
         var tags map[string]interface{}
-        if (chunk.Metric[9].Name == "tags") {
-                tags = StrToMap(chunk.Metric[9].Value)
+        if (chunk.Metric[10].Name == "tags") {
+                tags = StrToMap(chunk.Metric[10].Value)
         }
 
         var process_id string
@@ -96,9 +98,9 @@ func toModelSpan(chunk chunk.Chunk) *model.Span {
         } */
 
         var start_time time.Time
-        if (chunk.Metric[2].Name == "start_time") {
+        if (chunk.Metric[9].Name == "start_time") {
                 layout := "2006-01-02T15:04:05.000Z"
-                start_time, _ = time.Parse(layout, chunk.Metric[2].Value)
+                start_time, _ = time.Parse(layout, chunk.Metric[9].Value)
         }
 
 	return &model.Span{
@@ -164,23 +166,25 @@ func mapToModelKV(input map[string]interface{}) []model.KeyValue {
 	return ret
 }
 
-func mapModelKV(input []model.KeyValue) map[string]interface{} {
-	ret := make(map[string]interface{})
+func mapModelKV(input []model.KeyValue) string {
+	//ret := make(map[string]interface{})
+        ret := ""
 	var value interface{}
 	for _, kv := range input {
 		value = nil
 		if kv.VType == model.ValueType_STRING {
 			value = kv.VStr
 		} else if kv.VType == model.ValueType_BOOL {
-			value = kv.VBool
+			value = strconv.FormatBool(kv.VBool)
 		} else if kv.VType == model.ValueType_INT64 {
-			value = kv.VInt64
+			value = strconv.FormatInt(int64(kv.VInt64), 10)
 		} else if kv.VType == model.ValueType_FLOAT64 {
-			value = kv.VFloat64
+			value = strconv.FormatFloat(kv.VFloat64, 'E', -1, 64)
 		} else if kv.VType == model.ValueType_BINARY {
 			value = kv.VBinary
 		}
-		ret[kv.Key] = value
+		ret = ret + fmt.Sprintf("%s:%s", kv.Key, value) + " "
 	}
+        //log.Println(ret)
 	return ret
 }

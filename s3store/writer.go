@@ -117,7 +117,7 @@ func (w *Writer) Close() error {
 // WriteSpan saves the span into PostgreSQL
 func (w *Writer) WriteSpan(span *model.Span) error {
 
-        var labelsWithName = fmt.Sprintf("{__name__=\"services\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\"}",
+        var labelsWithName = fmt.Sprintf("{__name__=\"services\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",
         span.SpanID,
         span.TraceID.Low,
         span.TraceID.High,
@@ -128,7 +128,8 @@ func (w *Writer) WriteSpan(span *model.Span) error {
         mapModelKV(span.Process.Tags),
         span.Warnings,
         span.Process.ServiceName,
-        span.OperationName)
+        span.OperationName,
+        span.StartTime)
 
         storeDate := time.Now()
 
