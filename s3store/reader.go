@@ -214,6 +214,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        log.Println("FindTraces executed")
 
        traceIDs, err := r.FindTraceIDs(ctx, query)
+       log.Println("traceIDS: %s", traceIDs)
        ret := make([]*model.Trace, 0, len(traceIDs))
        if err != nil {
                return ret, err
@@ -288,8 +289,8 @@ func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
         var trace model.TraceID
         var traces []model.TraceID
         for i := 0; i < len(chunks); i++ {
-                if chunks[i].Metric[11].Name == "trace_id_low" {
-                        low, _ := strconv.ParseUint(chunks[i].Metric[11].Value, 10, 64)
+                if chunks[i].Metric[12].Name == "trace_id_low" {
+                        low, _ := strconv.ParseUint(chunks[i].Metric[12].Value, 10, 64)
                         trace.Low = low
                 }
                 if chunks[i].Metric[11].Name == "trace_id_high" {
