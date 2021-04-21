@@ -126,23 +126,14 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	builder := &whereBuilder{where: "", params: make([]interface{}, 0)}
         log.Println("GetTrace executed")
-
-	if traceID.Low > 0 {
-		builder.andWhere(traceID.Low, "trace_id_low = ?")
-	}
-	if traceID.High > 0 {
-		builder.andWhere(traceID.Low, "trace_id_high = ?")
-	}
 
         var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%s\", trace_id_high=\"%s\"}", traceID.Low, traceID.Low)
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
 
-        var spans []Span
-        ret := make([]*model.Span, 0, len(spans))
-        ret2 := make([]model.Trace_ProcessMapping, 0, len(spans))
+        ret := make([]*model.Span, 0, len(chunks))
+        ret2 := make([]model.Trace_ProcessMapping, 0, len(chunks))
         for _, chunk := range chunks {
                 var serviceName string
                 var processId string
@@ -175,7 +166,7 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
 
 func buildTraceWhere(query *spanstore.TraceQueryParameters) string { 
         log.Println("buildTraceWhere executed")
-        //var builder map[int]interface{}
+        log.Println("query parameters: %s", query.Tags)
         var builder string
 
         builder = "{"
@@ -197,8 +188,13 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) string {
                 builder = builder + fmt.Sprintf("duration < \"%d\", ", query.DurationMin)
 	}
 	if query.DurationMax > 0*time.Second {
-                builder = builder + fmt.Sprintf("duration > \"%d\"", query.DurationMax)
+                builder = builder + fmt.Sprintf("duration > \"%d\", ", query.DurationMax)
 	}
+        if len(query.Tags) > 0 {
+                for i, v := range query.Tags { 
+                        builder = builder + fmt.Sprintf("tags =~ \".*%s:%s.*\", ", i, v)
+                }
+        }
 	//TODO Tags map[]string
         // Remove last two characters (space and comma)
         builder = builder[:len(builder)-2]
