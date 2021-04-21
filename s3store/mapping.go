@@ -167,7 +167,6 @@ func mapToModelKV(input map[string]interface{}) []model.KeyValue {
 }
 
 func mapModelKV(input []model.KeyValue) string {
-	//ret := make(map[string]interface{})
         ret := ""
 	var value interface{}
 	for _, kv := range input {
