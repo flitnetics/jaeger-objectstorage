@@ -43,27 +43,6 @@ schema_config:
         prefix: index_
         period: 24h
       row_shards: 10
-    - from: 2019-10-24
-      store: boltdb-shipper
-      object_store: s3
-      schema: v9
-      index:
-        prefix: index_
-        period: 24h
-    - from: 2020-10-24
-      store: boltdb-shipper
-      object_store: s3
-      schema: v9
-      index:
-        prefix: index_
-        period: 24h
-    - from: 2017-10-24
-      store: boltdb-shipper
-      object_store: s3
-      schema: v9
-      index:
-        prefix: index_
-        period: 24h
 
 storage_config:
   aws:
