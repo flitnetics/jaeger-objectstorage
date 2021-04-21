@@ -6,7 +6,7 @@ import (
         "strconv"
         "time"
         "strings"
-        _ "log"
+        "log"
         "fmt"
 )
 
@@ -99,8 +99,8 @@ func toModelSpan(chunk chunk.Chunk) *model.Span {
 
         var start_time time.Time
         if (chunk.Metric[9].Name == "start_time") {
-                layout := "2006-01-02T15:04:05.000Z"
-                start_time, _ = time.Parse(layout, chunk.Metric[9].Value)
+                start_time, _ = time.Parse(time.RFC3339, chunk.Metric[9].Value)
+                log.Println("start time: %s", start_time)
         }
 
 	return &model.Span{
