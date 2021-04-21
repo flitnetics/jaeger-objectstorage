@@ -55,7 +55,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
         var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-        //log.Println("chunks get: %s", chunks)
+        log.Println("chunks get: %s", chunks)
         /* for i := 0; i < len(chunks); i++ {
                 log.Println(chunks[i].Metric[8].Value)
         } */
@@ -166,7 +166,6 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
 
 func buildTraceWhere(query *spanstore.TraceQueryParameters) string { 
         log.Println("buildTraceWhere executed")
-        log.Println("query parameters: %s", query.Tags)
         var builder string
 
         builder = "{"
@@ -184,21 +183,23 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) string {
 	if query.StartTimeMax.After(time.Time{}) {
 		//TODO builder.andWhere(query.StartTimeMax, "start_time < ?")
 	}
-	if query.DurationMin > 0*time.Second {
-                builder = builder + fmt.Sprintf("duration < \"%d\", ", query.DurationMin)
-	}
-	if query.DurationMax > 0*time.Second {
-                builder = builder + fmt.Sprintf("duration > \"%d\", ", query.DurationMax)
-	}
         if len(query.Tags) > 0 {
                 for i, v := range query.Tags { 
                         builder = builder + fmt.Sprintf("tags =~ \".*%s:%s.*\", ", i, v)
                 }
         }
-	//TODO Tags map[]string
+
         // Remove last two characters (space and comma)
         builder = builder[:len(builder)-2]
         builder = builder + "}"
+
+        // filters
+        if query.DurationMin > 0*time.Second {
+                builder = builder + fmt.Sprintf(" | duration > %s", time.Duration(query.DurationMin) / time.Nanosecond)
+        }
+        if query.DurationMax > 0*time.Second {
+                builder = builder + fmt.Sprintf(" | duration < %s", time.Duration(query.DurationMax) / time.Nanosecond)
+        }
 
         log.Println("builder: %s", builder)
 
@@ -278,7 +279,7 @@ func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         if err != nil {
-                log.Println("rstore error: %s", err)
+                log.Println("store error: %s", err)
         }
  
         var trace model.TraceID
@@ -319,9 +320,9 @@ func timeToModelTime(t time.Time) pmodel.Time {
 }
 
 func newMatchers(matchers string) []*labels.Matcher {
-	res, err := logql.ParseMatchers(matchers)
-	if err != nil {
-		log.Println("parseMatchers: %s", err)
-	}
-	return res
+        res, err := logql.ParseLogSelector(matchers, true)
+        if err != nil {
+                log.Println("parseLogSelector: %s", err)
+        }
+        return res.Matchers()
 }
