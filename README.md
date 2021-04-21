@@ -31,6 +31,62 @@ go build ./cmd/jaeger-s3/
 #### More info
 [https://grafana.com/docs/loki/latest/operations/storage/boltdb-shipper/](https://grafana.com/docs/loki/latest/operations/storage/boltdb-shipper/)
 
+Sample basic config:
+```
+schema_config:
+  configs:
+    - from: 2018-10-24
+      store: boltdb-shipper
+      object_store: s3
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+      row_shards: 10
+    - from: 2019-10-24
+      store: boltdb-shipper
+      object_store: s3
+      schema: v9
+      index:
+        prefix: index_
+        period: 24h
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: s3
+      schema: v9
+      index:
+        prefix: index_
+        period: 24h
+    - from: 2017-10-24
+      store: boltdb-shipper
+      object_store: s3
+      schema: v9
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  aws:
+    bucketnames: bucketname
+    region: ap-southeast-1
+    access_key_id: aws_access_key_id
+    secret_access_key: aws_secret_access_key
+    endpoint: s3.ap-southeast-1.amazonaws.com
+    http_config:
+      idle_conn_timeout: 90s
+      response_header_timeout: 0s
+  boltdb_shipper:
+    active_index_directory: /tmp/loki/boltdb-shipper-active
+    cache_location: /tmp/loki/boltdb-shipper-cache
+    cache_ttl: 24h         # Can be increased for faster performance over longer query periods, uses more disk space
+    shared_store: s3
+  filesystem:
+    directory: /tmp/loki/chunks
+
+compactor:
+  working_directory: /tmp/loki/boltdb-shipper-compactor
+  shared_store: s3
+```
 ## Start
 In order to start plugin just tell jaeger the path to a config compiled plugin.
 
