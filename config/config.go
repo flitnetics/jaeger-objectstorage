@@ -17,17 +17,6 @@ import (
 	"github.com/grafana/loki/pkg/util/validation"
 )
 
-const (
-	dbPrefix = "db."
-
-	flagHost     = dbPrefix + "host"
-	flagUsername = dbPrefix + "username"
-	flagPassword = dbPrefix + "password"
-        flagDatabase = dbPrefix + "database"
-        flagAwsConfig = dbPrefix + "aws"
-        flagStorageConfig = dbPrefix + "storage_config"
-)
-
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
 	// TCP host:port or Unix socket depending on Network.
@@ -83,17 +72,4 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 }
 
 // InitFromViper initializes the options struct with values from Viper
-func (c *Configuration) InitFromViper(v *viper.Viper) {
-	c.Host = v.GetString(flagHost)
-	if len(c.Host) == 0 {
-		c.Host = "localhost:5432"
-	}
-	c.Username = v.GetString(flagUsername)
-	if len(c.Username) == 0 {
-		c.Username = "postgres"
-	}
-	c.Password = v.GetString(flagPassword)
-	if len(c.Password) == 0 {
-		c.Password = "changeme"
-	}
-}
+func (c *Configuration) InitFromViper(v *viper.Viper) {}
