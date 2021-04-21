@@ -55,9 +55,9 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
         var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-        log.Println("chunks get: %s", chunks)
+        //log.Println("chunks get: %s", chunks)
         /* for i := 0; i < len(chunks); i++ {
-                log.Println(chunks[i].Metric[8].Value)
+                log.Println(chunks[i].Metric[9].Value)
         } */
 
         ret := removeServiceDuplicateValues(chunks, "service_name")

@@ -116,6 +116,7 @@ func (w *Writer) Close() error {
 
 // WriteSpan saves the span into PostgreSQL
 func (w *Writer) WriteSpan(span *model.Span) error {
+        startTime := span.StartTime.Format(time.RFC3339)
 
         var labelsWithName = fmt.Sprintf("{__name__=\"services\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",
         span.SpanID,
@@ -129,7 +130,7 @@ func (w *Writer) WriteSpan(span *model.Span) error {
         span.Warnings,
         span.Process.ServiceName,
         span.OperationName,
-        span.StartTime)
+        startTime)
 
         storeDate := time.Now()
 
