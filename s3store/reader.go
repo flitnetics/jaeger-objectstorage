@@ -214,7 +214,6 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        log.Println("FindTraces executed")
 
        traceIDs, err := r.FindTraceIDs(ctx, query)
-       log.Println("traceIDS: %s", traceIDs)
        ret := make([]*model.Trace, 0, len(traceIDs))
        if err != nil {
                return ret, err
