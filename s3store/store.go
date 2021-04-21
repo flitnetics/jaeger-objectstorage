@@ -1,10 +1,8 @@
 package s3store
 
 import (
-        "io/ioutil"
 	"io"
         "log"
-        "path"
 
 	hclog "github.com/hashicorp/go-hclog"
         "jaeger-s3/config"
@@ -14,7 +12,6 @@ import (
 
         "github.com/cortexproject/cortex/pkg/util/flagext"
         "github.com/cortexproject/cortex/pkg/chunk/storage"
-        cortex_local "github.com/cortexproject/cortex/pkg/chunk/local"
         util_log "github.com/cortexproject/cortex/pkg/util/log"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
@@ -36,11 +33,6 @@ type Store struct {
 func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger) (*Store, func() error, error) {
         lstore.RegisterCustomIndexClients(&cfg.StorageConfig, nil)
 
-        tempDir, err := ioutil.TempDir("", "boltdb-shippers")
-        if err != nil {
-                log.Println("tempDir failure %s", err)
-        }
-
         limits, err := validation.NewOverrides(validation.Limits{}, nil)
         if err != nil {
                 log.Println("limits failure %s", err)
@@ -53,7 +45,10 @@ func NewStore(conf *config.Configuration, cfg *types.Config, logger hclog.Logger
         kconfig := &lstore.Config{
                 Config: storage.Config{
                         AWSStorageConfig: cfg.StorageConfig.AWSStorageConfig,
-                        FSConfig: cortex_local.FSConfig{Directory: path.Join(tempDir, "chunks")},
+                        FSConfig: cfg.StorageConfig.FSConfig,
+                        AzureStorageConfig: cfg.StorageConfig.AzureStorageConfig,
+                        GCPStorageConfig: cfg.StorageConfig.GCPStorageConfig,
+                        GCSConfig: cfg.StorageConfig.GCSConfig, 
                 },
                 BoltDBShipperConfig: boltdbShipperConfig,
         }
