@@ -167,6 +167,7 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
 func buildTraceWhere(query *spanstore.TraceQueryParameters) string { 
         log.Println("buildTraceWhere executed")
         var builder string
+        //log.Println("min time: %s", query.StartTimeMin)
 
         builder = "{"
         builder = builder + "__name__=\"services\", env=\"prod\", "
@@ -176,12 +177,6 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) string {
 	}
 	if len(query.OperationName) > 0 {
                 builder = builder + fmt.Sprintf("operation_name = \"%s\", ", query.OperationName)
-	}
-	//if query.StartTimeMin.After(time.Time{}) {
-        //        builder = builder + fmt.Sprintf("start_time > \"%s\", ", query.StartTimeMin)
-	//}
-	if query.StartTimeMax.After(time.Time{}) {
-		//TODO builder.andWhere(query.StartTimeMax, "start_time < ?")
 	}
         if len(query.Tags) > 0 {
                 for i, v := range query.Tags { 
@@ -193,6 +188,10 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) string {
         builder = builder[:len(builder)-2]
         builder = builder + "}"
 
+        // convert time which is in RFC3339 to UNIX epoch
+        timeMin := query.StartTimeMin.Unix()
+        timeMax := query.StartTimeMax.Unix()
+
         // filters
         if query.DurationMin > 0*time.Second {
                 builder = builder + fmt.Sprintf(" | duration > %s", time.Duration(query.DurationMin) / time.Nanosecond)
@@ -201,6 +200,14 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) string {
                 builder = builder + fmt.Sprintf(" | duration < %s", time.Duration(query.DurationMax) / time.Nanosecond)
         }
 
+        if query.StartTimeMin.After(time.Time{}) {
+                builder = builder + fmt.Sprintf(" | start_time > %d", timeMin)
+        }       
+        if query.StartTimeMax.After(time.Time{}) {
+                builder = builder + fmt.Sprintf(" | start_time < %d", timeMax)
+        }       
+
+        // log our queries
         log.Println("builder: %s", builder)
 
 	return builder
