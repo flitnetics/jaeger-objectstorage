@@ -3,9 +3,7 @@ module jaeger-s3
 go 1.16
 
 require (
-	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
-	github.com/cortexproject/cortex v1.7.1-0.20210316085356-3fedc1108a49
-	github.com/drone/envsubst v1.0.2 // indirect
+	github.com/cortexproject/cortex v1.7.1-0.20210323110114-8a2e2c1eeb65
 	github.com/grafana/loki v1.6.1
 	github.com/hashicorp/go-hclog v0.15.0
 	github.com/jaegertracing/jaeger v1.17.1
@@ -48,3 +46,5 @@ replace github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-
 replace github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
 
 replace github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
+
+replace github.com/grafana/loki v1.6.1 => github.com/muhammadn/loki v1.6.9
