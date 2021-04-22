@@ -17,7 +17,7 @@ cd /path/to/jaeger-s3
 go build ./cmd/jaeger-s3/
 ```
 
-### Configuration
+## Configuration
 #### Storage
 [https://github.com/grafana/loki/blob/37a7189d4ed76655144d982e2eeebf495e0809ea/docs/sources/configuration/_index.md#storage_config](https://github.com/grafana/loki/blob/37a7189d4ed76655144d982e2eeebf495e0809ea/docs/sources/configuration/_index.md#storage_config)
 #### Index (schema config)
