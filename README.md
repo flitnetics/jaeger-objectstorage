@@ -7,20 +7,13 @@ S3 storage support for Jaeger.
 Google Cloud Storage (GCS), Microsoft Azure Blob Storage, Amazon DynamoDB and Google BigTable **may** work with some changes to configuration file. Reports on testing on these storage backends is appreciated.
 
 ## Preresquities
-* Need my own fork of jaeger
+None. No longer needs my custom jaeger code. Just use the official ones.
 
-## Compile
-Need to compile my own fork of jaeger (develop branch)
-```
-git clone -b develop git@github.com:muhammadn/jaeger.git
-cd /path/to/jaeger
-go build -tags ui ./cmd/all-in-one/main.go
-cp main /path/to/jaeger-s3/all-in-one
-```
-
+## Build/Compile
 In order to compile the plugin from source code you can use `go build`:
 
 ```
+cd /path/to/jaeger-s3
 go build ./cmd/jaeger-s3/
 ```
 
