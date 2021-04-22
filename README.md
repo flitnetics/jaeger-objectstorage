@@ -9,6 +9,8 @@ Google Cloud Storage (GCS), Microsoft Azure Blob Storage, Amazon DynamoDB and Go
 ## Preresquities
 None. No longer needs my custom jaeger code. Just use the official ones.
 
+You can now use this plugin with Jaeger Operator/Helmchart/K8s since there are no dependency on my custom Jaeger code.
+
 ## Build/Compile
 In order to compile the plugin from source code you can use `go build`:
 
