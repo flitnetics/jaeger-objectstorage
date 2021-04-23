@@ -52,7 +52,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	r.logger.Warn("GetServices called")
 
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"spans\"}"
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         //log.Println("chunks get: %s", chunks)
@@ -109,7 +109,7 @@ func removeOperationDuplicateValues(a []chunk.Chunk, b string) []string {
 func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"spans\"}"
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         operations := removeOperationDuplicateValues(chunks, "operation_name")
@@ -128,7 +128,7 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
 func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
         log.Println("GetTrace executed")
 
-        var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%s\", trace_id_high=\"%s\"}", traceID.Low, traceID.Low)
+        var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%s\", trace_id_high=\"%s\"}", traceID.Low, traceID.Low)
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
 
@@ -164,13 +164,13 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
 	return &model.Trace{Spans: ret, ProcessMap: ret2}, err
 }
 
-func buildTraceWhere(query *spanstore.TraceQueryParameters) string { 
+func buildTraceWhere(query *spanstore.TraceQueryParameters) (string, time.Time, time.Time) { 
         log.Println("buildTraceWhere executed")
         var builder string
         //log.Println("min time: %s", query.StartTimeMin)
 
         builder = "{"
-        builder = builder + "__name__=\"services\", env=\"prod\", "
+        builder = builder + "__name__=\"spans\", env=\"prod\", "
 
 	if len(query.ServiceName) > 0 {
                 builder = builder + fmt.Sprintf("service_name = \"%s\", ", query.ServiceName)
@@ -188,10 +188,6 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) string {
         builder = builder[:len(builder)-2]
         builder = builder + "}"
 
-        // convert time which is in RFC3339 to UNIX epoch
-        timeMin := query.StartTimeMin.Unix()
-        timeMax := query.StartTimeMax.Unix()
-
         // filters
         if query.DurationMin > 0*time.Second {
                 builder = builder + fmt.Sprintf(" | duration > %s", time.Duration(query.DurationMin) / time.Nanosecond)
@@ -200,17 +196,11 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) string {
                 builder = builder + fmt.Sprintf(" | duration < %s", time.Duration(query.DurationMax) / time.Nanosecond)
         }
 
-        if query.StartTimeMin.After(time.Time{}) {
-                builder = builder + fmt.Sprintf(" | start_time > %d", timeMin)
-        }       
-        if query.StartTimeMax.After(time.Time{}) {
-                builder = builder + fmt.Sprintf(" | start_time < %d", timeMax)
-        }       
-
         // log our queries
         log.Println("builder: %s", builder)
 
-	return builder
+        // here we include starttime min and max to pass to indexed timestamp
+	return builder, query.StartTimeMin, query.StartTimeMax
 }
 
 // FindTraces retrieve traces that match the traceQuery
@@ -224,7 +214,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        }
        grouping := make(map[model.TraceID]*model.Trace)
        for _, traceID := range traceIDs {
-               var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"services\", trace_id_low=\"%d\"}", traceID.Low)
+               var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\"}", traceID.Low)
 
                chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
                // log.Println("FindTraces chunks %s", chunks)
@@ -280,11 +270,11 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 
 // FindTraceIDs retrieve traceIDs that match the traceQuery
 func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) (ret []model.TraceID, err error) {
-	builder := buildTraceWhere(query)
+	builder, timeMin, timeMax := buildTraceWhere(query)
 
         var fooLabelsWithName = builder
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(timeMin), timeToModelTime(timeMax), newMatchers(fooLabelsWithName)...)
         if err != nil {
                 log.Println("store error: %s", err)
         }
