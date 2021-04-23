@@ -128,7 +128,8 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
 func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
         log.Println("GetTrace executed")
 
-        var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%s\", trace_id_high=\"%s\"}", traceID.Low, traceID.Low)
+        //var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\", trace_id_high=\"%d\"}", traceID.Low, traceID.Low)
+        var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\"}", traceID.Low)
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
 
@@ -159,6 +160,7 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
                                 Tags:        mapToModelKV(processTags),
                         },
                 })
+
         }
 
 	return &model.Trace{Spans: ret, ProcessMap: ret2}, err
