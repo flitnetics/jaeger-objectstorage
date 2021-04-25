@@ -218,7 +218,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        for _, traceID := range traceIDs {
                var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\"}", traceID.Low)
 
-               chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+               chunks, err := r.store.Get(userCtx, "data", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...)
                // log.Println("FindTraces chunks %s", chunks)
                //log.Println("traceID data %s", chunks)
 
