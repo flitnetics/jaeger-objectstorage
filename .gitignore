@@ -5,3 +5,5 @@ config-example.yaml
 all-in-one
 jaeger-s3
 .DS_Store
+jaeger-s3-linux-amd64.gz
+dist/
