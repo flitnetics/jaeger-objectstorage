@@ -12,14 +12,6 @@ builds:
       - linux
       - windows
       - darwin
-dockers:
-  - binaries:
-      - bff
-    image_templates:
-      - ghcr.io/imranismail/bff:{{ .Tag }}
-      - ghcr.io/imranismail/bff:v{{ .Major }}
-      - ghcr.io/imranismail/bff:v{{ .Major }}.{{ .Minor }}
-      - ghcr.io/imranismail/bff:latest
 archives:
   - replacements:
       darwin: Darwin
