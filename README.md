@@ -1,6 +1,5 @@
 This is the repository that contains S3 plugin for Jaeger.
 
-> IMPORTANT: This plugin is still under development.
 ## About
 S3 storage support for Jaeger. 
 
