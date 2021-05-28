@@ -19,11 +19,6 @@ import (
 
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
-	// TCP host:port or Unix socket depending on Network.
-	Host     string `yaml:"host"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-        Database string `yaml:"database"`
 
 	AWSStorageConfig  aws.StorageConfig      `yaml:"aws"`
         AzureStorageConfig     azure.BlobStorageConfig `yaml:"azure"`
@@ -53,9 +48,6 @@ func (c *Config) Validate() error {
         }
         if err := c.StorageConfig.Validate(); err != nil {
                 log.Println("invalid storage config")
-        }
-        if err := c.StorageConfig.BoltDBShipperConfig.Validate(); err != nil {
-                log.Println("invalid boltdb-shipper config")
         }
         return nil
 }
