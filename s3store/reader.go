@@ -30,7 +30,7 @@ var (
         userCtx        = user.InjectOrgID(context.Background(), "data")
 )
 
-// Reader can query for and load traces from PostgreSQL v2.x.
+// Reader can query for and load traces from your object store.
 type Reader struct {
         cfg    *types.Config
 
@@ -38,7 +38,7 @@ type Reader struct {
 	logger hclog.Logger
 }
 
-// NewReader returns a new SpanReader for PostgreSQL v2.x.
+// NewReader returns a new SpanReader for the object store.
 func NewReader(cfg *types.Config, store lstore.Store, logger hclog.Logger) *Reader {
 	return &Reader{
                 cfg: cfg,
@@ -191,11 +191,19 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) (string, time.Time, 
         builder = builder + "}"
 
         // filters
+        // minimum duration in duration
         if query.DurationMin > 0*time.Second {
                 builder = builder + fmt.Sprintf(" | duration > %s", time.Duration(query.DurationMin) / time.Nanosecond)
         }
+
+        // max duration in duration
         if query.DurationMax > 0*time.Second {
                 builder = builder + fmt.Sprintf(" | duration < %s", time.Duration(query.DurationMax) / time.Nanosecond)
+        }
+
+        // how many result of the traces do we want to show
+        if query.NumTraces > 0 {
+                builder = builder + fmt.Sprintf(" | limit = %d", query.NumTraces)
         }
 
         // log our queries
@@ -319,7 +327,7 @@ func timeToModelTime(t time.Time) pmodel.Time {
 }
 
 func newMatchers(matchers string) []*labels.Matcher {
-        res, err := logql.ParseLogSelector(matchers, true)
+        res, err := logql.ParseLogSelector(matchers)
         if err != nil {
                 log.Println("parseLogSelector: %s", err)
         }
