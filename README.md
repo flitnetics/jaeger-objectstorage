@@ -49,6 +49,7 @@ storage_config:
     http_config:
       idle_conn_timeout: 90s
       response_header_timeout: 0s
+      tls_handshake_timeout: 3s # change this to something larger if you have `TLS Handshake Timeout`
   boltdb_shipper:
     active_index_directory: /tmp/loki/boltdb-shipper-active
     cache_location: /tmp/loki/boltdb-shipper-cache
