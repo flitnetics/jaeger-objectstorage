@@ -52,7 +52,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	r.logger.Warn("GetServices called")
 
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"spans\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         //log.Println("chunks get: %s", chunks)
@@ -60,12 +60,12 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
                 log.Println(chunks[i].Metric[9].Value)
         } */
 
-        ret := removeServiceDuplicateValues(chunks, "service_name")
-
+        ret := removeDuplicateValues(chunks, "service_name")
+ 
         return ret, err
 }
 
-func removeServiceDuplicateValues(a []chunk.Chunk, b string) []string {
+func removeDuplicateValues(a []chunk.Chunk, b string) []string {
     keys := make(map[string]bool)
     list := []string{}
  
@@ -73,32 +73,12 @@ func removeServiceDuplicateValues(a []chunk.Chunk, b string) []string {
     // to the already present value in new slice (list)
     // then we append it. else we jump on another element.
     for _, entry := range a {
-        if _, value := keys[entry.Metric[8].Value]; !value {
+        if _, value := keys[entry.Metric[2].Value]; !value {
             // data type: service_name, operation_name, etc
-            if entry.Metric[8].Name == b {
+            if entry.Metric[2].Name == b {
                     // assign key value to list
-                    keys[entry.Metric[8].Value] = true
-                    list = append(list, entry.Metric[8].Value)
-            }
-        }
-    }
-    return list
-}
-
-func removeOperationDuplicateValues(a []chunk.Chunk, b string) []string {
-    keys := make(map[string]bool)
-    list := []string{}
-
-    // If the key(values of the slice) is not equal
-    // to the already present value in new slice (list)
-    // then we append it. else we jump on another element.
-    for _, entry := range a {
-        if _, value := keys[entry.Metric[5].Value]; !value {
-            // data type: service_name, operation_name, etc
-            if entry.Metric[5].Name == b {
-                    // assign key value to list
-                    keys[entry.Metric[5].Value] = true
-                    list = append(list, entry.Metric[5].Value)
+                    keys[entry.Metric[2].Value] = true
+                    list = append(list, entry.Metric[2].Value)
             }
         }
     }
@@ -108,11 +88,10 @@ func removeOperationDuplicateValues(a []chunk.Chunk, b string) []string {
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 
-        //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"spans\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"operations\"}"
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-        operations := removeOperationDuplicateValues(chunks, "operation_name")
+        operations := removeDuplicateValues(chunks, "operation_name")
 
         ret := make([]spanstore.Operation, 0, len(operations))
         for _, operation := range operations {

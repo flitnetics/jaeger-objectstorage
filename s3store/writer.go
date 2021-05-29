@@ -118,7 +118,7 @@ func (w *Writer) Close() error {
 func (w *Writer) WriteSpan(span *model.Span) error {
         startTime := span.StartTime.Format(time.RFC3339)
 
-        var labelsWithName = fmt.Sprintf("{__name__=\"spans\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",
+        var spanLabelsWithName = fmt.Sprintf("{__name__=\"spans\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",
         span.SpanID,
         span.TraceID.Low,
         span.TraceID.High,
@@ -143,20 +143,60 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 	        },
         }
 
-        chk := []chunk.Chunk{}
-        addedServicesChunkIDs := map[string]struct{}{}
+        pchk := []chunk.Chunk{}
+        addedSpansChunkIDs := map[string]struct{}{}
 	for _, tr := range chunksToBuildForTimeRanges {
 
                 // span chunk
-                serviceChk := newChunk(buildTestStreams(labelsWithName, tr))
-                addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
-                chk = append(chk, serviceChk)
+                spanChk := newChunk(buildTestStreams(spanLabelsWithName, tr))
+                addedSpansChunkIDs[spanChk.ExternalKey()] = struct{}{}
+                pchk = append(pchk, spanChk)
 	}
 
-        // upload the chunks 
-        err := w.store.Put(ctx, chk)
+        // upload the span chunks 
+        err := w.store.Put(ctx, pchk)
         if err != nil {
-                log.Println("store Put error: %s", err)
+                log.Println("store spans Put error: %s", err)
+        }
+
+        // services label
+        var serviceLabelsWithName = fmt.Sprintf("{__name__=\"services\", env=\"prod\", service_name=\"%s\"}", span.Process.ServiceName)
+
+        // services chunk
+        schk := []chunk.Chunk{}
+        addedServicesChunkIDs := map[string]struct{}{}
+        for _, tr := range chunksToBuildForTimeRanges {
+
+                // add slice to services chunk
+                serviceChk := newChunk(buildTestStreams(serviceLabelsWithName, tr))
+                addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
+                schk = append(schk, serviceChk)
+        }
+
+        // upload the service chunks
+        err = w.store.Put(ctx, schk)
+        if err != nil {
+                log.Println("store services Put error: %s", err)
+        }
+
+        // operations label
+        var operationLabelsWithName = fmt.Sprintf("{__name__=\"operations\", env=\"prod\", operation_name=\"%s\"}", span.OperationName)
+
+        // services chunk
+        ochk := []chunk.Chunk{}
+        addedOperationsChunkIDs := map[string]struct{}{}
+        for _, tr := range chunksToBuildForTimeRanges {
+
+                // add slice to services chunk
+                operationChk := newChunk(buildTestStreams(operationLabelsWithName, tr))
+                addedOperationsChunkIDs[operationChk.ExternalKey()] = struct{}{}
+                ochk = append(ochk, operationChk)
+        }
+
+        // upload the operation chunks
+        err = w.store.Put(ctx, ochk)
+        if err != nil {
+                log.Println("store operations Put error: %s", err)
         }
 
 	return nil
