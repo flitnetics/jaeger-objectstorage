@@ -37,7 +37,7 @@ var (
 	ctx        = user.InjectOrgID(context.Background(), "data")
 )
 
-// Writer handles all writes to PostgreSQL 2.x for the Jaeger data model
+// Writer handles all writes to object store for the Jaeger data model
 type Writer struct {
        spanMeasurement     string
        spanMetaMeasurement string
@@ -98,7 +98,7 @@ func newChunk(stream logproto.Stream) chunk.Chunk {
         return c
 }
 
-// NewWriter returns a Writer for PostgreSQL v2.x
+// NewWriter returns a Writer for object store
 func NewWriter(cfg *types.Config, store lstore.Store, logger hclog.Logger) *Writer {
 	w := &Writer{
                 cfg: cfg,
@@ -114,7 +114,7 @@ func (w *Writer) Close() error {
 	return nil
 }
 
-// WriteSpan saves the span into PostgreSQL
+// WriteSpan saves the span into object store
 func (w *Writer) WriteSpan(span *model.Span) error {
         startTime := span.StartTime.Format(time.RFC3339)
 
@@ -143,18 +143,21 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 	        },
         }
 
+        chk := []chunk.Chunk{}
         addedServicesChunkIDs := map[string]struct{}{}
 	for _, tr := range chunksToBuildForTimeRanges {
 
+                // span chunk
                 serviceChk := newChunk(buildTestStreams(labelsWithName, tr))
-                // service chunk
-                err := w.store.PutOne(ctx, serviceChk.From, serviceChk.Through, serviceChk)
-                // err := w.store.Put(ctx, []chunk.Chunk{chk})
-                if err != nil {
-                        log.Println("store PutOne error: %s", err)
-                }
                 addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
+                chk = append(chk, serviceChk)
 	}
+
+        // upload the chunks 
+        err := w.store.Put(ctx, chk)
+        if err != nil {
+                log.Println("store Put error: %s", err)
+        }
 
 	return nil
 }

@@ -32,4 +32,3 @@ func (c *Config) Clone() flagext.Registerer {
                 return &c
         }(*c)
 }
-

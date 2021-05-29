@@ -8,8 +8,7 @@ import (
         "jaeger-s3/config"
         "jaeger-s3/config/types"
 
-        "github.com/grafana/loki/pkg/util/validation"
-
+        "github.com/cortexproject/cortex/pkg/util/validation"
         "github.com/cortexproject/cortex/pkg/util/flagext"
         "github.com/cortexproject/cortex/pkg/chunk/storage"
         util_log "github.com/cortexproject/cortex/pkg/util/log"
