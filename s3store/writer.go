@@ -118,7 +118,7 @@ func (w *Writer) Close() error {
 func (w *Writer) WriteSpan(span *model.Span) error {
         startTime := span.StartTime.Format(time.RFC3339)
 
-        var labelsWithName = fmt.Sprintf("{__name__=\"spans\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",
+        var spanLabelsWithName = fmt.Sprintf("{__name__=\"spans\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",
         span.SpanID,
         span.TraceID.Low,
         span.TraceID.High,
@@ -148,13 +148,31 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 	for _, tr := range chunksToBuildForTimeRanges {
 
                 // span chunk
-                serviceChk := newChunk(buildTestStreams(labelsWithName, tr))
+                serviceChk := newChunk(buildTestStreams(spanLabelsWithName, tr))
                 addedServicesChunkIDs[serviceChk.ExternalKey()] = struct{}{}
                 chk = append(chk, serviceChk)
 	}
 
         // upload the chunks 
         err := w.store.Put(ctx, chk)
+        if err != nil {
+                log.Println("store Put error: %s", err)
+        }
+
+        var serviceLabelsWithName = fmt.Sprintf("{__name__=\"services\", env=\"prod\", service_name=\"%s\"}", span.Process.ServiceName)
+
+        chk2 := []chunk.Chunk{}
+        addedServicesChunkIDs2 := map[string]struct{}{}
+        for _, tr := range chunksToBuildForTimeRanges {
+
+                // span chunk
+                serviceChk2 := newChunk(buildTestStreams(serviceLabelsWithName, tr))
+                addedServicesChunkIDs2[serviceChk2.ExternalKey()] = struct{}{}
+                chk2 = append(chk2, serviceChk2)
+        }
+
+        // upload the chunks
+        err = w.store.Put(ctx, chk2)
         if err != nil {
                 log.Println("store Put error: %s", err)
         }

@@ -52,7 +52,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	r.logger.Warn("GetServices called")
 
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"spans\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
         chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         //log.Println("chunks get: %s", chunks)
@@ -61,7 +61,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
         } */
 
         ret := removeServiceDuplicateValues(chunks, "service_name")
-
+ 
         return ret, err
 }
 
@@ -73,12 +73,12 @@ func removeServiceDuplicateValues(a []chunk.Chunk, b string) []string {
     // to the already present value in new slice (list)
     // then we append it. else we jump on another element.
     for _, entry := range a {
-        if _, value := keys[entry.Metric[8].Value]; !value {
+        if _, value := keys[entry.Metric[2].Value]; !value {
             // data type: service_name, operation_name, etc
-            if entry.Metric[8].Name == b {
+            if entry.Metric[2].Name == b {
                     // assign key value to list
-                    keys[entry.Metric[8].Value] = true
-                    list = append(list, entry.Metric[8].Value)
+                    keys[entry.Metric[2].Value] = true
+                    list = append(list, entry.Metric[2].Value)
             }
         }
     }
