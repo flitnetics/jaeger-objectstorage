@@ -1,9 +1,9 @@
-This is the repository that contains S3 plugin for Jaeger.
+This is the repository that contains object storage (S3/GCS/AzureBlob) plugin for Jaeger.
 
 ## About
-S3 storage support for Jaeger. 
+S3, Google Cloud Storage(GCS) and Microsoft Azure Blob Storage object storage support for Jaeger. 
 
-Google Cloud Storage (GCS), Microsoft Azure Blob Storage, Amazon DynamoDB and Google BigTable **may** work with some changes to configuration file. Reports on testing on these storage backends is appreciated.
+Amazon DynamoDB and Google BigTable for indexes **may** work with some changes to configuration file. Reports on testing on these storage backends is appreciated.
 
 ## Preresquities
 None. No longer needs my custom jaeger code. Just use the official ones.
@@ -26,7 +26,7 @@ go build ./cmd/jaeger-s3/
 #### More info
 [https://grafana.com/docs/loki/latest/operations/storage/boltdb-shipper/](https://grafana.com/docs/loki/latest/operations/storage/boltdb-shipper/)
 
-Sample basic config:
+Sample basic config (AWS):
 ```
 schema_config:
   configs:
@@ -62,6 +62,60 @@ compactor:
   working_directory: /tmp/loki/boltdb-shipper-compactor
   shared_store: s3
 ```
+
+Sample basic config (GCS):
+```
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/boltdb-shipper-active
+    cache_location: /loki/boltdb-shipper-cache
+    cache_ttl: 24h         # Can be increased for faster performance over longer query periods, uses more disk space
+    shared_store: gcs
+  gcs:
+      bucket_name: <bucket>
+
+schema_config:
+  configs:
+    - from: 2020-07-01
+      store: boltdb-shipper
+      object_store: gcs
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+compactor:
+  working_directory: /tmp/loki/boltdb-shipper-compactor
+  shared_store: gcs
+```
+
+Sample basic config (Azure BlobStorage):
+```
+schema_config:
+  configs:
+    - from: 2020-07-01
+      store: boltdb-shipper
+      object_store: azure
+      schema: v11  
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /data/loki/index
+    shared_store: azure
+    cache_location: /data/loki/boltdb-cache
+  azure:
+    container_name: .. # add container name here
+    account_name: .. # add account name here
+    account_key: .. # add access key here
+
+compactor:
+  working_directory: /tmp/loki/boltdb-shipper-compactor
+  shared_store: azure
+```
+
 ## Start
 In order to start plugin just tell jaeger the path to a config compiled plugin.
 
