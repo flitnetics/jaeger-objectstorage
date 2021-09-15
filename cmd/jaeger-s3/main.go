@@ -12,7 +12,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
         "github.com/spf13/viper"
-        "github.com/grafana/loki/pkg/cfg"
+        "github.com/muhammadn/loki/pkg/cfg" // this we use our own fork of loki
 )
 
 var configPath string

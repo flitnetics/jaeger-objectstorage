@@ -3,14 +3,15 @@ module jaeger-s3
 go 1.16
 
 require (
+	github.com/Azure/azure-pipeline-go v0.2.2 // indirect
+	github.com/Masterminds/sprig/v3 v3.2.2 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
-	github.com/cortexproject/cortex v1.9.0
-	github.com/gomodule/redigo v1.8.4 // indirect
+	github.com/cortexproject/cortex v1.9.1-0.20210527130655-bd720c688ffa
 	github.com/grafana/loki v1.6.1
 	github.com/hashicorp/go-hclog v0.15.0
 	github.com/jaegertracing/jaeger v1.17.1
+	github.com/muhammadn/loki v1.7.0 // indirect
 	github.com/pelletier/go-toml v1.8.1 // indirect
-	github.com/pierrec/lz4/v4 v4.1.4 // indirect
 	github.com/prometheus/common v0.23.0
 	github.com/prometheus/prometheus v1.8.2-0.20210510213326-e313ffa8abf6
 	github.com/sercand/kuberesolver v2.4.0+incompatible // indirect
@@ -49,6 +50,6 @@ replace github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
 
 replace github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
 
-replace github.com/grafana/loki v1.6.1 => github.com/muhammadn/loki v1.6.10
+replace github.com/grafana/loki v1.6.1 => github.com/muhammadn/loki v1.6.11
 
 replace github.com/cortexproject/cortex => github.com/muhammadn/cortex v1.8.9

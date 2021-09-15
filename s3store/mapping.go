@@ -10,19 +10,6 @@ import (
         "fmt"
 )
 
-type whereBuilder struct {
-	where  string
-	params []interface{}
-}
-
-func (r *whereBuilder) andWhere(param interface{}, where string) {
-	if len(r.where) > 0 {
-		r.where += " AND "
-	}
-	r.where += where
-	r.params = append(r.params, param)
-}
-
 func StrToMap(in string) map[string]interface{} {
     res := make(map[string]interface{})
     array := strings.Split(in, " ")
