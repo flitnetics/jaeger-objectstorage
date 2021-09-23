@@ -5,6 +5,7 @@ S3, Google Cloud Storage(GCS) and Microsoft Azure Blob Storage object storage su
 
 Amazon DynamoDB and Google BigTable for indexes **may** work with some changes to configuration file. Reports on testing on these storage backends is appreciated.
 
+With this plugin, you won't need to run and maintain Tempo, at all!
 ## Preresquities
 None. No longer needs my custom jaeger code. Just use the official ones.
 
