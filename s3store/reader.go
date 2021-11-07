@@ -50,11 +50,13 @@ func NewReader(cfg *types.Config, store lstore.Store, logger hclog.Logger) *Read
 // GetServices returns all services traced by Jaeger
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	r.logger.Warn("GetServices called")
+        log.Println("timeFrom: %s", time.Now().Add(time.Duration(-1) * time.Hour))
+        log.Println("timeNow: %s", time.Now())
 
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
         var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         //log.Println("chunks get: %s", chunks)
         /* for i := 0; i < len(chunks); i++ {
                 log.Println(chunks[i].Metric[9].Value)
@@ -90,7 +92,7 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
 
         var fooLabelsWithName = "{env=\"prod\", __name__=\"operations\"}"
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         operations := removeDuplicateValues(chunks, "operation_name")
 
         ret := make([]spanstore.Operation, 0, len(operations))
@@ -286,7 +288,7 @@ func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
 }
 
 // GetDependencies returns all inter-service dependencies
-func (r *Reader) GetDependencies(endTs time.Time, lookback time.Duration) (ret []model.DependencyLink, err error) {
+func (r *Reader) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) (ret []model.DependencyLink, err error) {
 	/* err = r.db.Model((*SpanRef)(nil)).
 		ColumnExpr("source_spans.service_name as parent").
 		ColumnExpr("child_spans.service_name as child").

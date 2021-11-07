@@ -45,13 +45,16 @@ func main() {
                 logger.Warn(env)
         }
 
-	var store shared.StoragePlugin
+	// var store shared.PluginServices
 	var closeStore func() error
-	var err error
+	var err error 
 
-	store, closeStore, err = s3store.NewStore(&conf, &mconfig, logger)
+        store, closeStore, err := s3store.NewStore(&conf, &mconfig, logger)
 
-	grpc.Serve(store)
+	grpc.Serve(&shared.PluginServices{
+               Store: store,
+        })
+
 
 	if err = closeStore(); err != nil {
 		logger.Error("failed to close store", "error", err)
