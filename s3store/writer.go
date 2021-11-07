@@ -115,7 +115,7 @@ func (w *Writer) Close() error {
 }
 
 // WriteSpan saves the span into object store
-func (w *Writer) WriteSpan(span *model.Span) error {
+func (w *Writer) WriteSpan(ctx context.Context, span *model.Span) error {
         startTime := span.StartTime.Format(time.RFC3339)
 
         var spanLabelsWithName = fmt.Sprintf("{__name__=\"spans\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",

@@ -7,14 +7,13 @@ require (
 	github.com/cortexproject/cortex v1.9.0
 	github.com/gomodule/redigo v1.8.4 // indirect
 	github.com/grafana/loki v1.6.1
-	github.com/hashicorp/go-hclog v0.15.0
-	github.com/jaegertracing/jaeger v1.17.1
-	github.com/pelletier/go-toml v1.8.1 // indirect
+	github.com/hashicorp/go-hclog v0.16.2
+	github.com/jaegertracing/jaeger v1.28.0
 	github.com/pierrec/lz4/v4 v4.1.4 // indirect
-	github.com/prometheus/common v0.23.0
+	github.com/prometheus/common v0.32.1
 	github.com/prometheus/prometheus v1.8.2-0.20210510213326-e313ffa8abf6
 	github.com/sercand/kuberesolver v2.4.0+incompatible // indirect
-	github.com/spf13/viper v1.7.0
+	github.com/spf13/viper v1.9.0
 	github.com/weaveworks/common v0.0.0-20210419092856-009d1eebd624
 )
 
