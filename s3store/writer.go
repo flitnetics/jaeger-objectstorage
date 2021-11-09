@@ -159,6 +159,8 @@ func (w *Writer) WriteSpan(span *model.Span) error {
                 log.Println("store spans Put error: %s", err)
         }
 
+        pchk = nil
+
         // services label
         var serviceLabelsWithName = fmt.Sprintf("{__name__=\"services\", env=\"prod\", service_name=\"%s\"}", span.Process.ServiceName)
 
@@ -179,6 +181,8 @@ func (w *Writer) WriteSpan(span *model.Span) error {
                 log.Println("store services Put error: %s", err)
         }
 
+        schk = nil
+
         // operations label
         var operationLabelsWithName = fmt.Sprintf("{__name__=\"operations\", env=\"prod\", operation_name=\"%s\"}", span.OperationName)
 
@@ -198,6 +202,8 @@ func (w *Writer) WriteSpan(span *model.Span) error {
         if err != nil {
                 log.Println("store operations Put error: %s", err)
         }
+
+        ochk = nil
 
 	return nil
 }

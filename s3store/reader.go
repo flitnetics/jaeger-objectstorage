@@ -54,7 +54,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
         var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         //log.Println("chunks get: %s", chunks)
         /* for i := 0; i < len(chunks); i++ {
                 log.Println(chunks[i].Metric[9].Value)
@@ -90,7 +90,7 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
 
         var fooLabelsWithName = "{env=\"prod\", __name__=\"operations\"}"
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         operations := removeDuplicateValues(chunks, "operation_name")
 
         ret := make([]spanstore.Operation, 0, len(operations))
@@ -229,6 +229,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                                 processTags = StrToMap(chunk.Metric[7].Value)
                        }
 
+                       // the usable code which generates the traces
                        modelSpan := toModelSpan(chunk)
                        trace, found := grouping[modelSpan.TraceID]
                        if !found {
@@ -238,6 +239,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                                }
                                grouping[modelSpan.TraceID] = trace
                        }
+
                        trace.Spans = append(trace.Spans, modelSpan)
                        procMap := model.Trace_ProcessMapping{
                                ProcessID: processId,
@@ -246,7 +248,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                                        Tags:        mapToModelKV(processTags),
                                },
                        }
-                       trace.ProcessMap = append(trace.ProcessMap, procMap)
+                       trace.ProcessMap = append(trace.ProcessMap, procMap) 
                }
        }
 
