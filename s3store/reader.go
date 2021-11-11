@@ -199,7 +199,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        builder, _, _ := buildTraceWhere(query)
        var fooLabelsWithName = builder
 
-       chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...) 
+       chunks, err := r.store.Get(userCtx, "data", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...) 
        ret := make([]*model.Trace, 0, len(chunks))
        if err != nil {
                return ret, err
