@@ -54,7 +54,7 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
         var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         //log.Println("chunks get: %s", chunks)
         /* for i := 0; i < len(chunks); i++ {
                 log.Println(chunks[i].Metric[9].Value)
@@ -90,7 +90,7 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
 
         var fooLabelsWithName = "{env=\"prod\", __name__=\"operations\"}"
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         operations := removeDuplicateValues(chunks, "operation_name")
 
         ret := make([]spanstore.Operation, 0, len(operations))
@@ -196,58 +196,50 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) (string, time.Time, 
 func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
        log.Println("FindTraces executed")
 
-       traceIDs, err := r.FindTraceIDs(ctx, query)
-       ret := make([]*model.Trace, 0, len(traceIDs))
+       builder, _, _ := buildTraceWhere(query)
+       var fooLabelsWithName = builder
+
+       chunks, err := r.store.Get(userCtx, "data", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...) 
+       ret := make([]*model.Trace, 0, len(chunks))
        if err != nil {
                return ret, err
        }
        grouping := make(map[model.TraceID]*model.Trace)
-       for _, traceID := range traceIDs {
-               var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\"}", traceID.Low)
+       for _, chunk := range chunks {
+               var serviceName string
+               var processId string
+               var processTags map[string]interface{}
 
-               chunks, err := r.store.Get(userCtx, "data", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...)
-               // log.Println("FindTraces chunks %s", chunks)
-               //log.Println("traceID data %s", chunks)
-
-               if err != nil {
-                       log.Println("Error getting data in reader: %s", err)
+               if chunk.Metric[8].Name == "service_name" {
+                        serviceName = chunk.Metric[8].Value
                }
-               for _, chunk := range chunks {
-                       var serviceName string
-                       var processId string
-                       var processTags map[string]interface{}
 
-                       if chunk.Metric[8].Name == "service_name" {
-                                serviceName = chunk.Metric[8].Value
-                       }
-                
-                       if chunk.Metric[6].Name == "process_id" {
-                                processId = chunk.Metric[6].Value
-                       }
-                
-                       if chunk.Metric[7].Name == "process_tags" {
-                                processTags = StrToMap(chunk.Metric[7].Value)
-                       }
-
-                       modelSpan := toModelSpan(chunk)
-                       trace, found := grouping[modelSpan.TraceID]
-                       if !found {
-                               trace = &model.Trace{
-                                       Spans:      make([]*model.Span, 0, len(chunks)),
-                                       ProcessMap: make([]model.Trace_ProcessMapping, 0, len(chunks)),
-                               }
-                               grouping[modelSpan.TraceID] = trace
-                       }
-                       trace.Spans = append(trace.Spans, modelSpan)
-                       procMap := model.Trace_ProcessMapping{
-                               ProcessID: processId,
-                               Process: model.Process{
-                                       ServiceName: serviceName,
-                                       Tags:        mapToModelKV(processTags),
-                               },
-                       }
-                       trace.ProcessMap = append(trace.ProcessMap, procMap)
+               if chunk.Metric[6].Name == "process_id" {
+                        processId = chunk.Metric[6].Value
                }
+
+               if chunk.Metric[7].Name == "process_tags" {
+                       processTags = StrToMap(chunk.Metric[7].Value)
+               }
+
+               modelSpan := toModelSpan(chunk)
+               trace, found := grouping[modelSpan.TraceID]
+               if !found {
+                       trace = &model.Trace{
+                               Spans:      make([]*model.Span, 0, len(chunks)),
+                               ProcessMap: make([]model.Trace_ProcessMapping, 0, len(chunks)),
+                       }
+                       grouping[modelSpan.TraceID] = trace
+               }
+               trace.Spans = append(trace.Spans, modelSpan)
+               procMap := model.Trace_ProcessMapping{
+                       ProcessID: processId,
+                       Process: model.Process{
+                               ServiceName: serviceName,
+                               Tags:        mapToModelKV(processTags),
+                       },
+               }
+               trace.ProcessMap = append(trace.ProcessMap, procMap)
        }
 
        for _, trace := range grouping {
