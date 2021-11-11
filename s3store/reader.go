@@ -27,7 +27,7 @@ import (
 var _ spanstore.Reader = (*Reader)(nil)
 
 var (
-        userCtx        = user.InjectOrgID(context.Background(), "data")
+        userCtx        = user.InjectOrgID(context.Background(), "fake")
 )
 
 // Reader can query for and load traces from your object store.
@@ -52,46 +52,26 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	r.logger.Warn("GetServices called")
 
         //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"services\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"logs\"}"
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         //log.Println("chunks get: %s", chunks)
         /* for i := 0; i < len(chunks); i++ {
                 log.Println(chunks[i].Metric[9].Value)
         } */
 
-        ret := removeDuplicateValues(chunks, "service_name")
+        ret := removeServiceDuplicateValues(chunks, "service_name")
  
         return ret, err
-}
-
-func removeDuplicateValues(a []chunk.Chunk, b string) []string {
-    keys := make(map[string]bool)
-    list := []string{}
- 
-    // If the key(values of the slice) is not equal
-    // to the already present value in new slice (list)
-    // then we append it. else we jump on another element.
-    for _, entry := range a {
-        if _, value := keys[entry.Metric[2].Value]; !value {
-            // data type: service_name, operation_name, etc
-            if entry.Metric[2].Name == b {
-                    // assign key value to list
-                    keys[entry.Metric[2].Value] = true
-                    list = append(list, entry.Metric[2].Value)
-            }
-        }
-    }
-    return list
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"operations\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"logs\"}"
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-        operations := removeDuplicateValues(chunks, "operation_name")
+        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        operations := removeOperationDuplicateValues(chunks, "operation_name")
 
         ret := make([]spanstore.Operation, 0, len(operations))
         for _, operation := range operations {
@@ -103,14 +83,54 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
         return ret, err
 }
 
-// GetTrace takes a traceID and returns a Trace associated with that traceID
+func removeServiceDuplicateValues(a []chunk.Chunk, b string) []string {
+    keys := make(map[string]bool)
+    list := []string{}
+
+    // If the key(values of the slice) is not equal
+    // to the already present value in new slice (list)
+    // then we append it. else we jump on another element.
+    for _, entry := range a {
+        if _, value := keys[entry.Metric[8].Value]; !value {
+            // data type: service_name, operation_name, etc
+            if entry.Metric[8].Name == b {
+                    // assign key value to list
+                    keys[entry.Metric[8].Value] = true
+                    list = append(list, entry.Metric[8].Value)
+            }
+        }
+    }
+    return list
+}
+
+func removeOperationDuplicateValues(a []chunk.Chunk, b string) []string {
+    keys := make(map[string]bool)
+    list := []string{}
+
+    // If the key(values of the slice) is not equal
+    // to the already present value in new slice (list)
+    // then we append it. else we jump on another element.
+    for _, entry := range a {
+        if _, value := keys[entry.Metric[5].Value]; !value {
+            // data type: service_name, operation_name, etc
+            if entry.Metric[5].Name == b {
+                    // assign key value to list
+                    keys[entry.Metric[5].Value] = true
+                    list = append(list, entry.Metric[5].Value)
+            }
+        }
+    }
+    return list
+}
+
+// Getrace takes a traceID and returns a Trace associated with that traceID
 func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
         log.Println("GetTrace executed")
 
         //var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\", trace_id_high=\"%d\"}", traceID.Low, traceID.Low)
-        var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\"}", traceID.Low)
+        var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"logs\", trace_id_low=\"%d\"}", traceID.Low)
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
 
         ret := make([]*model.Span, 0, len(chunks))
         ret2 := make([]model.Trace_ProcessMapping, 0, len(chunks))
@@ -151,7 +171,7 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) (string, time.Time, 
         //log.Println("min time: %s", query.StartTimeMin)
 
         builder = "{"
-        builder = builder + "__name__=\"spans\", env=\"prod\", "
+        builder = builder + "__name__=\"logs\", env=\"prod\", "
 
 	if len(query.ServiceName) > 0 {
                 builder = builder + fmt.Sprintf("service_name = \"%s\", ", query.ServiceName)
@@ -196,16 +216,62 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) (string, time.Time, 
 func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
        log.Println("FindTraces executed")
 
-       traceIDs, err := r.FindTraceIDs(ctx, query)
+       builder, _, _ := buildTraceWhere(query)
+       var fooLabelsWithName = builder
+
+       chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...) 
+       ret := make([]*model.Trace, 0, len(chunks))
+       if err != nil {
+               return ret, err
+       }
+       grouping := make(map[model.TraceID]*model.Trace)
+       for _, chunk := range chunks {
+               var serviceName string
+               var processId string
+               var processTags map[string]interface{}
+
+               if chunk.Metric[8].Name == "service_name" {
+                        serviceName = chunk.Metric[8].Value
+               }
+
+               if chunk.Metric[6].Name == "process_id" {
+                        processId = chunk.Metric[6].Value
+               }
+
+               if chunk.Metric[7].Name == "process_tags" {
+                       processTags = StrToMap(chunk.Metric[7].Value)
+               }
+
+               modelSpan := toModelSpan(chunk)
+               trace, found := grouping[modelSpan.TraceID]
+               if !found {
+                       trace = &model.Trace{
+                               Spans:      make([]*model.Span, 0, len(chunks)),
+                               ProcessMap: make([]model.Trace_ProcessMapping, 0, len(chunks)),
+                       }
+                       grouping[modelSpan.TraceID] = trace
+               }
+               trace.Spans = append(trace.Spans, modelSpan)
+               procMap := model.Trace_ProcessMapping{
+                       ProcessID: processId,
+                       Process: model.Process{
+                               ServiceName: serviceName,
+                               Tags:        mapToModelKV(processTags),
+                       },
+               }
+               trace.ProcessMap = append(trace.ProcessMap, procMap)
+       }
+
+       /* traceIDs, err := r.FindTraceIDs(ctx, query)
        ret := make([]*model.Trace, 0, len(traceIDs))
        if err != nil {
                return ret, err
        }
        grouping := make(map[model.TraceID]*model.Trace)
        for _, traceID := range traceIDs {
-               var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\"}", traceID.Low)
+               var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"logs\", trace_id_low=\"%d\"}", traceID.Low)
 
-               chunks, err := r.store.Get(userCtx, "data", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...)
+               chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...)
                // log.Println("FindTraces chunks %s", chunks)
                //log.Println("traceID data %s", chunks)
 
@@ -248,7 +314,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                        }
                        trace.ProcessMap = append(trace.ProcessMap, procMap)
                }
-       }
+       } */
 
        for _, trace := range grouping {
                ret = append(ret, trace)
@@ -263,7 +329,7 @@ func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryPa
 
         var fooLabelsWithName = builder
 
-        chunks, err := r.store.Get(userCtx, "data", timeToModelTime(timeMin), timeToModelTime(timeMax), newMatchers(fooLabelsWithName)...)
+        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(timeMin), timeToModelTime(timeMax), newMatchers(fooLabelsWithName)...)
         if err != nil {
                 log.Println("store error: %s", err)
         }
