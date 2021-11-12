@@ -204,6 +204,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        if err != nil {
                return ret, err
        }
+
        grouping := make(map[model.TraceID]*model.Trace)
        for _, chunk := range chunks {
                var serviceName string
@@ -239,12 +240,18 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                                Tags:        mapToModelKV(processTags),
                        },
                }
-               trace.ProcessMap = append(trace.ProcessMap, procMap)
+               trace.ProcessMap = append(trace.ProcessMap, procMap) 
+               // force memory release
+               trace = nil 
        }
 
        for _, trace := range grouping {
                ret = append(ret, trace)
        }
+
+       // release memory
+       grouping = nil
+       chunks = nil
 
        return ret, err
 }

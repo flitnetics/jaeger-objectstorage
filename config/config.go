@@ -14,7 +14,7 @@ import (
         "github.com/cortexproject/cortex/pkg/chunk/local"
 	"github.com/cortexproject/cortex/pkg/chunk"
 
-	"github.com/grafana/loki/pkg/util/validation"
+       "github.com/grafana/loki/pkg/util/validation"
 )
 
 // Configuration describes the options to customize the storage behavior
