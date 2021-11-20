@@ -1,0 +1,5 @@
+.gitignore
+Dockerfile
+LICENSE
+README.md
+jaeger-s3
