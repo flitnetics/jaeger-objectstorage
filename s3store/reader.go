@@ -47,19 +47,21 @@ func NewReader(cfg *types.Config, store lstore.Store, logger hclog.Logger) *Read
 	}
 }
 
+func GetSpans(r *Reader, fooLabelsWithName string) ([]chunk.Chunk, error) {
+        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        return chunks, err
+}
+
 // GetServices returns all services traced by Jaeger
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	r.logger.Warn("GetServices called")
 
-        //var fooLabelsWithName = "{__name__=\"service\", env=\"prod\"}"
         var fooLabelsWithName = "{env=\"prod\", __name__=\"spans\"}"
 
-        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
-        //log.Println("chunks get: %s", chunks)
-        /* for i := 0; i < len(chunks); i++ {
-                log.Println(chunks[i].Metric[9].Value)
-        } */
-
+        // get the chunks
+        chunks, err := GetSpans(r, fooLabelsWithName)
+ 
+        // clean up duplicates
         ret := removeServiceDuplicateValues(chunks, "service_name")
  
         return ret, err
@@ -110,7 +112,7 @@ func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQue
 
         var fooLabelsWithName = "{env=\"prod\", __name__=\"spans\"}"
 
-        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := GetSpans(r, fooLabelsWithName)
         operations := removeOperationDuplicateValues(chunks, "operation_name")
 
         ret := make([]spanstore.Operation, 0, len(operations))
