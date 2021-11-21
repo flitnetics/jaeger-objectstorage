@@ -222,21 +222,38 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        builder, _, _ := buildTraceWhere(query)
        var fooLabelsWithName = builder
 
-       chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...) 
+       //chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...) 
 
-       fooLabelsWithName = "{__name__=\"logs\", env=\"prod\", service_name = \"jaeger-query\", operation_name = \"/api/services\"}"
+       fooLabelsWithName = "{env=\"prod\"}"
        params := &logproto.QueryRequest{ Selector:  fooLabelsWithName,
-                        Limit:     10,
+                        Limit:     1000,
                         Start:     query.StartTimeMin,
                         End:       query.StartTimeMax,
                         Direction: logproto.BACKWARD,
        }
 
-       iter, err := r.store.SelectLogs(userCtx, logql.SelectLogParams{QueryRequest: params})
+       itr, err := r.store.SelectLogs(userCtx, logql.SelectLogParams{QueryRequest: params})
+       if err != nil {
+               log.Println("iter error: %+v", err)
+       }
 
-       log.Println("iter: %s", iter) 
+       log.Println("iter: %s", itr)
+       res := []logproto.Entry{}
 
-       ret := make([]*model.Trace, 0, len(chunks))
+       j := uint32(0)
+       for itr.Next() {
+                j++
+                // limit result like the querier would do.
+                if j == params.Limit {
+                        break
+                }
+                res = append(res, itr.Entry())
+       }
+       itr.Close()
+ 
+       log.Println("res %s", res)
+
+       /* ret := make([]*model.Trace, 0, len(chunks))
        if err != nil {
                return ret, err
        }
@@ -277,19 +294,14 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                        },
                }
                trace.ProcessMap = append(trace.ProcessMap, procMap) 
-               // force memory release
-               trace = nil 
        }
 
        for _, trace := range grouping {
                ret = append(ret, trace)
        }
 
-       // release memory
-       grouping = nil
-       chunks = nil
-
-       return ret, err
+       return ret, err */
+       return nil, err
 }
 
 // FindTraceIDs retrieve traceIDs that match the traceQuery

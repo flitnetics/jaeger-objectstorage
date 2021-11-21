@@ -46,6 +46,7 @@ replace github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
 
 replace github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
 
-replace github.com/grafana/loki v1.6.1 => github.com/muhammadn/loki v1.6.10
+//replace github.com/grafana/loki v1.6.1 => github.com/muhammadn/loki v1.6.10
+replace github.com/grafana/loki v1.6.1 => ../loki
 
 //replace github.com/cortexproject/cortex => github.com/muhammadn/cortex v1.8.9
