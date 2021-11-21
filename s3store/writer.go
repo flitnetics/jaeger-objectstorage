@@ -75,8 +75,7 @@ func newChunk(stream logproto.Stream) chunk.Chunk {
         }
         if !lbs.Has(labels.MetricName) {
                 builder := labels.NewBuilder(lbs)
-                //builder.Set(labels.MetricName, "logs")
-                builder.Set(labels.MetricName, "spans")
+                builder.Set(labels.MetricName, "logs")
                 lbs = builder.Labels()
         }
         from, through := pmodel.TimeFromUnixNano(stream.Entries[0].Timestamp.UnixNano()), pmodel.TimeFromUnixNano(stream.Entries[0].Timestamp.UnixNano())
@@ -119,7 +118,7 @@ func (w *Writer) Close() error {
 func (w *Writer) WriteSpan(span *model.Span) error {
         startTime := span.StartTime.Format(time.RFC3339)
 
-        var spanLabelsWithName = fmt.Sprintf("{__name__=\"spans\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",
+        var spanLabelsWithName = fmt.Sprintf("{__name__=\"logs\", env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",
         span.SpanID,
         span.TraceID.Low,
         span.TraceID.High,
