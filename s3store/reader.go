@@ -224,6 +224,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 
        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(query.StartTimeMin), timeToModelTime(query.StartTimeMax), newMatchers(fooLabelsWithName)...) 
 
+       fooLabelsWithName = "{__name__=\"logs\", env=\"prod\", service_name = \"jaeger-query\", operation_name = \"/api/services\"}"
        params := &logproto.QueryRequest{ Selector:  fooLabelsWithName,
                         Limit:     10,
                         Start:     query.StartTimeMin,
@@ -231,9 +232,9 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                         Direction: logproto.BACKWARD,
        }
 
-       iter, err := r.store.SelectLogs(ctx, logql.SelectLogParams{QueryRequest: params})
+       iter, err := r.store.SelectLogs(userCtx, logql.SelectLogParams{QueryRequest: params})
 
-       log.Println("iter: %s", iter)
+       log.Println("iter: %s", iter) 
 
        ret := make([]*model.Trace, 0, len(chunks))
        if err != nil {
