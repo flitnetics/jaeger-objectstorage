@@ -47,8 +47,8 @@ func NewReader(cfg *types.Config, store lstore.Store, logger hclog.Logger) *Read
 	}
 }
 
-func GetSpans(r *Reader, fooLabelsWithName string) ([]chunk.Chunk, error) {
-        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(time.Now().Add(-1 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+func GetSpans(r *Reader, fooLabelsWithName string, hours int) ([]chunk.Chunk, error) {
+        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(time.Now().Add(time.Duration(hours) * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
         return chunks, err
 }
 
@@ -56,10 +56,10 @@ func GetSpans(r *Reader, fooLabelsWithName string) ([]chunk.Chunk, error) {
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	r.logger.Warn("GetServices called")
 
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"spans\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"logs\"}"
 
         // get the chunks
-        chunks, err := GetSpans(r, fooLabelsWithName)
+        chunks, err := GetSpans(r, fooLabelsWithName, -1)
  
         // clean up duplicates
         ret := removeServiceDuplicateValues(chunks, "service_name")
@@ -110,9 +110,9 @@ func removeOperationDuplicateValues(a []chunk.Chunk, b string) []string {
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 
-        var fooLabelsWithName = "{env=\"prod\", __name__=\"spans\"}"
+        var fooLabelsWithName = "{env=\"prod\", __name__=\"logs\"}"
 
-        chunks, err := GetSpans(r, fooLabelsWithName)
+        chunks, err := GetSpans(r, fooLabelsWithName, -1)
         operations := removeOperationDuplicateValues(chunks, "operation_name")
 
         ret := make([]spanstore.Operation, 0, len(operations))
@@ -130,9 +130,9 @@ func (r *Reader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tr
         log.Println("GetTrace executed")
 
         //var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\", trace_id_high=\"%d\"}", traceID.Low, traceID.Low)
-        var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"spans\", trace_id_low=\"%d\"}", traceID.Low)
+        var fooLabelsWithName = fmt.Sprintf("{env=\"prod\", __name__=\"logs\", trace_id_low=\"%d\"}", traceID.Low)
 
-        chunks, err := r.store.Get(userCtx, "fake", timeToModelTime(time.Now().Add(-24 * time.Hour)), timeToModelTime(time.Now()), newMatchers(fooLabelsWithName)...)
+        chunks, err := GetSpans(r, fooLabelsWithName, -24)
 
         ret := make([]*model.Span, 0, len(chunks))
         ret2 := make([]model.Trace_ProcessMapping, 0, len(chunks))
@@ -173,7 +173,7 @@ func buildTraceWhere(query *spanstore.TraceQueryParameters) (string, time.Time, 
         //log.Println("min time: %s", query.StartTimeMin)
 
         builder = "{"
-        builder = builder + "__name__=\"spans\", env=\"prod\", "
+        builder = builder + "__name__=\"logs\", env=\"prod\", "
 
 	if len(query.ServiceName) > 0 {
                 builder = builder + fmt.Sprintf("service_name = \"%s\", ", query.ServiceName)
