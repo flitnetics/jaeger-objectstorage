@@ -65,7 +65,7 @@ compactor:
 
 Sample basic config (AWS with IRSA. example: EKS)
 
-*replace s3 part of configuration above with URI style instead*
+**replace aws part of configuration above with URI style instead**
 ```
 storage_config:
   aws:
