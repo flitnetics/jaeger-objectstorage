@@ -66,6 +66,19 @@ compactor:
   shared_store: s3
 ```
 
+Sample basic config (AWS with IRSA. example: EKS)
+
+**replace aws part of configuration above with URI style instead**
+```
+storage_config:
+  aws:
+    s3: s3://ap-southeast-1/yourbucket
+    http_config:
+      idle_conn_timeout: 90s
+      response_header_timeout: 0s
+      tls_handshake_timeout: 3s # change this to something larger if you have `TLS Handshake Timeout` or 0 to disable timeout
+```
+
 Sample basic config (GCS):
 ```
 storage_config:
