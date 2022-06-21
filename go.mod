@@ -3,7 +3,6 @@ module jaeger-s3
 go 1.16
 
 require (
-	github.com/NYTimes/gziphandler v1.1.1
 	github.com/cortexproject/cortex v1.10.0
 	github.com/go-kit/kit v0.10.0
 	github.com/grafana/loki v1.6.1
@@ -11,12 +10,12 @@ require (
 	github.com/jaegertracing/jaeger v1.17.1
 	github.com/pelletier/go-toml v1.8.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.4 // indirect
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/common v0.32.1
 	github.com/prometheus/prometheus v1.8.2-0.20210510213326-e313ffa8abf6
 	github.com/spf13/viper v1.7.0
 	github.com/weaveworks/common v0.0.0-20210419092856-009d1eebd624
-	google.golang.org/grpc v1.37.0
 )
 
 replace github.com/hpcloud/tail => github.com/grafana/tail v0.0.0-20201004203643-7aa4e4a91f03

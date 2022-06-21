@@ -68,6 +68,51 @@ compactor:
   shared_store: s3
 ```
 
+Sample basic config (AWS with Retention for 28 days)
+```
+schema_config:
+  configs:
+    - from: 2018-10-24
+      store: boltdb-shipper
+      object_store: s3
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+      row_shards: 10
+
+storage_config:
+  aws:
+    bucketnames: bucketname
+    region: ap-southeast-1
+    access_key_id: aws_access_key_id
+    secret_access_key: aws_secret_access_key
+    endpoint: s3.ap-southeast-1.amazonaws.com
+    http_config:
+      idle_conn_timeout: 90s
+      response_header_timeout: 0s
+      tls_handshake_timeout: 3s # change this to something larger if you have `TLS Handshake Timeout` or 0 to disable timeout
+  boltdb_shipper:
+    active_index_directory: /tmp/loki/boltdb-shipper-active
+    cache_location: /tmp/loki/boltdb-shipper-cache
+    cache_ttl: 24h         # Can be increased for faster performance over longer query periods, uses more disk space
+    shared_store: s3
+  filesystem:
+    directory: /tmp/loki/chunks
+
+compactor:
+  working_directory: /tmp/loki/boltdb-shipper-compactor
+  shared_store: s3
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 672h
+```
+
 Sample basic config (AWS with IRSA. example: EKS)
 
 **replace aws part of configuration above with URI style instead**
