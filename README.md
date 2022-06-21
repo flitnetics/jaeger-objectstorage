@@ -1,4 +1,4 @@
-his is the repository that contains object storage (S3/GCS/AzureBlob) plugin for Jaeger.
+This is the repository that contains object storage (S3/GCS/AzureBlob) plugin for Jaeger.
 
 You are free to use this software under a permissive open-source MIT license. To fund further work and maintenance on this plugin, work will be done by flitnetics. If you require additional support for your infrastructure, you can contact [Sales](mailto:sales@flitnetics.com)
 
