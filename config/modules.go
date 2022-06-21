@@ -4,31 +4,75 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/grafana/loki/pkg/storage/stores/shipper/compactor"
+        "os"
 
 	"github.com/cortexproject/cortex/pkg/chunk"
+        "github.com/cortexproject/cortex/pkg/chunk/storage"
 	"github.com/cortexproject/cortex/pkg/util/services"
+        util_log "github.com/cortexproject/cortex/pkg/util/log"
 
 	"github.com/prometheus/client_golang/prometheus"
 
+        "github.com/grafana/loki/pkg/storage/stores/shipper/compactor"
 	"github.com/grafana/loki/pkg/storage/stores/shipper"
 	"github.com/grafana/loki/pkg/storage/stores/shipper/uploads"
+
+        "github.com/go-kit/kit/log/level"
 )
 
 const maxChunkAgeForTableManager = 12 * time.Hour
 
 // The various modules that make up Loki.
 const (
-	IngesterQuerier string = "ingester-querier"
 	Compactor       string = "compactor"
-	All             string = "all"
+        TableManager    string = "table-manager"
+        All             string = "all"
 )
 
 // Placeholder limits type to pass to cortex frontend
 type disabledShuffleShardingLimits struct{}
 
 func (disabledShuffleShardingLimits) MaxQueriersPerUser(userID string) int { return 0 }
+
+func (t *Loki) initTableManager() (services.Service, error) {
+        err := t.cfg.SchemaConfig.Load()
+        if err != nil {
+                return nil, err
+        }
+
+        // Assume the newest config is the one to use
+        lastConfig := &t.cfg.SchemaConfig.Configs[len(t.cfg.SchemaConfig.Configs)-1]
+
+        if (t.cfg.TableManager.ChunkTables.WriteScale.Enabled ||
+                t.cfg.TableManager.IndexTables.WriteScale.Enabled ||
+                t.cfg.TableManager.ChunkTables.InactiveWriteScale.Enabled ||
+                t.cfg.TableManager.IndexTables.InactiveWriteScale.Enabled ||
+                t.cfg.TableManager.ChunkTables.ReadScale.Enabled ||
+                t.cfg.TableManager.IndexTables.ReadScale.Enabled ||
+                t.cfg.TableManager.ChunkTables.InactiveReadScale.Enabled ||
+                t.cfg.TableManager.IndexTables.InactiveReadScale.Enabled) &&
+                t.cfg.StorageConfig.AWSStorageConfig.Metrics.URL == "" {
+                level.Error(util_log.Logger).Log("msg", "WriteScale is enabled but no Metrics URL has been provided")
+                os.Exit(1)
+        }
+
+        reg := prometheus.WrapRegistererWith(prometheus.Labels{"component": "table-manager-store"}, prometheus.DefaultRegisterer)
+
+        tableClient, err := storage.NewTableClient(lastConfig.IndexType, t.cfg.StorageConfig.Config, reg)
+        if err != nil {
+                return nil, err
+        }
+
+        bucketClient, err := storage.NewBucketClient(t.cfg.StorageConfig.Config)
+        util_log.CheckFatal("initializing bucket client", err)
+
+        t.tableManager, err = chunk.NewTableManager(t.cfg.TableManager, t.cfg.SchemaConfig.SchemaConfig, maxChunkAgeForTableManager, tableClient, bucketClient, nil, prometheus.DefaultRegisterer)
+        if err != nil {
+                return nil, err
+        }
+
+        return t.tableManager, nil
+}
 
 func (t *Loki) initCompactor() (services.Service, error) {
 	var err error

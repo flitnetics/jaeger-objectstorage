@@ -3,8 +3,9 @@ package config
 import (
         lstore "github.com/grafana/loki/pkg/storage"
         "github.com/grafana/loki/pkg/storage/stores/shipper/compactor"
-        "github.com/cortexproject/cortex/pkg/util/modules"
  
+        "github.com/pkg/errors"
+
 	"github.com/spf13/viper"
         "flag"
         "log"
@@ -14,7 +15,7 @@ import (
         "github.com/cortexproject/cortex/pkg/chunk/gcp"
         "github.com/cortexproject/cortex/pkg/chunk/local"
 	"github.com/cortexproject/cortex/pkg/chunk"
-
+        "github.com/cortexproject/cortex/pkg/util/modules"
         "github.com/cortexproject/cortex/pkg/util/services"
 
         "github.com/grafana/loki/pkg/util/validation"
@@ -53,6 +54,7 @@ type Loki struct {
         serviceMap    map[string]services.Service
 
         compactor       *compactor.Compactor
+        tableManager    *chunk.TableManager
 }
 
 func (c *Config) Validate() error {
@@ -62,6 +64,9 @@ func (c *Config) Validate() error {
         }
         if err := c.StorageConfig.Validate(); err != nil {
                 log.Println("invalid storage config")
+        }
+        if err := c.TableManager.Validate(); err != nil {
+                return errors.Wrap(err, "invalid tablemanager config")
         }
         return nil
 }
@@ -81,6 +86,7 @@ func (t *Loki) setupModuleManager() error {
         mm := modules.NewManager()
 
         mm.RegisterModule(Compactor, t.initCompactor)
+        mm.RegisterModule(TableManager, t.initTableManager)
 
         // Add dependencies
         deps := map[string][]string{
