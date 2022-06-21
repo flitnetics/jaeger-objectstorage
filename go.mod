@@ -3,16 +3,20 @@ module jaeger-s3
 go 1.16
 
 require (
+	github.com/NYTimes/gziphandler v1.1.1
 	github.com/cortexproject/cortex v1.10.0
+	github.com/go-kit/kit v0.10.0
 	github.com/grafana/loki v1.6.1
 	github.com/hashicorp/go-hclog v0.15.0
 	github.com/jaegertracing/jaeger v1.17.1
 	github.com/pelletier/go-toml v1.8.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.4 // indirect
-	github.com/prometheus/common v0.26.1-0.20210603143733-6ef301f414bf
+	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/common v0.32.1
 	github.com/prometheus/prometheus v1.8.2-0.20210510213326-e313ffa8abf6
 	github.com/spf13/viper v1.7.0
 	github.com/weaveworks/common v0.0.0-20210419092856-009d1eebd624
+	google.golang.org/grpc v1.37.0
 )
 
 replace github.com/hpcloud/tail => github.com/grafana/tail v0.0.0-20201004203643-7aa4e4a91f03
@@ -39,13 +43,17 @@ replace google.golang.org/grpc => google.golang.org/grpc v1.29.1
 // Using a 3rd-party branch for custom dialer - see https://github.com/bradfitz/gomemcache/pull/86
 replace github.com/bradfitz/gomemcache => github.com/themihai/gomemcache v0.0.0-20180902122335-24332e2d58ab
 
-// Fix errors like too many arguments in call to "github.com/go-openapi/errors".Required
-//   have (string, string)
-//   want (string, string, interface {})
-replace github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
-
-replace github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
-
 replace github.com/grafana/loki v1.6.1 => github.com/muhammadn/loki v1.6.10
 
 //replace github.com/cortexproject/cortex => github.com/muhammadn/cortex v1.8.9
+
+// Fix errors like too many arguments in call to "github.com/go-openapi/errors".Required
+//   have (string, string)
+//   want (string, string, interface {})
+//replace github.com/go-openapi/errors => github.com/go-openapi/errors v0.19.4
+
+//replace github.com/go-openapi/validate => github.com/go-openapi/validate v0.19.8
+
+//replace github.com/go-openapi/runtime => github.com/go-openapi/runtime v0.19.4
+
+//replace github.com/prometheus/alertmanager => github.com/prometheus/alertmanager v0.24.0

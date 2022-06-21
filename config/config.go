@@ -3,6 +3,7 @@ package config
 import (
         lstore "github.com/grafana/loki/pkg/storage"
         "github.com/grafana/loki/pkg/storage/stores/shipper/compactor"
+        "github.com/cortexproject/cortex/pkg/util/modules"
  
 	"github.com/spf13/viper"
         "flag"
@@ -14,18 +15,20 @@ import (
         "github.com/cortexproject/cortex/pkg/chunk/local"
 	"github.com/cortexproject/cortex/pkg/chunk"
 
-       "github.com/grafana/loki/pkg/util/validation"
+        "github.com/cortexproject/cortex/pkg/util/services"
+
+        "github.com/grafana/loki/pkg/util/validation"
 )
 
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
 
-	AWSStorageConfig  aws.StorageConfig      `yaml:"aws"`
+	AWSStorageConfig       aws.StorageConfig      `yaml:"aws"`
         AzureStorageConfig     azure.BlobStorageConfig `yaml:"azure"`
         GCPStorageConfig       gcp.Config              `yaml:"bigtable"`
         GCSConfig              gcp.GCSConfig           `yaml:"gcs"`
         FSConfig               local.FSConfig          `yaml:"filesystem"`
-	StorageConfig    string       `yaml:"storage_config"`
+	StorageConfig          string                  `yaml:"storage_config"`
 }
 
 type Config struct {
@@ -34,11 +37,22 @@ type Config struct {
 	HTTPPrefix  string `yaml:"http_prefix"`
 
 	StorageConfig    lstore.Config              `yaml:"storage_config,omitempty"`
-	ChunkStoreConfig chunk.StoreConfig           `yaml:"chunk_store_config,omitempty"`
-	TableManager     chunk.TableManagerConfig    `yaml:"table_manager,omitempty"`
+	ChunkStoreConfig chunk.StoreConfig          `yaml:"chunk_store_config,omitempty"`
+	TableManager     chunk.TableManagerConfig   `yaml:"table_manager,omitempty"`
 	SchemaConfig     lstore.SchemaConfig        `yaml:"schema_config,omitempty"`
-	LimitsConfig     validation.Limits           `yaml:"limits_config,omitempty"`
-	CompactorConfig  compactor.Config            `yaml:"compactor,omitempty"`
+	LimitsConfig     validation.Limits          `yaml:"limits_config,omitempty"`
+	CompactorConfig  compactor.Config           `yaml:"compactor,omitempty"`
+}
+
+// Loki is the root datastructure for Loki.
+type Loki struct {
+        cfg *Config
+
+        // set during initialization
+        ModuleManager *modules.Manager
+        serviceMap    map[string]services.Service
+
+        compactor       *compactor.Compactor
 }
 
 func (c *Config) Validate() error {
@@ -61,6 +75,33 @@ func (c *Config) RegisterFlags(f *flag.FlagSet) {
 	c.TableManager.RegisterFlags(f)
 	c.LimitsConfig.RegisterFlags(f)
 	c.CompactorConfig.RegisterFlags(f)
+}
+
+func (t *Loki) setupModuleManager() error {
+        mm := modules.NewManager()
+
+        mm.RegisterModule(Compactor, t.initCompactor)
+
+        // Add dependencies
+        deps := map[string][]string{
+                //Compactor:       {Server}, // not needed to run server port/daemon
+        }
+
+        // If we are running Loki with boltdb-shipper as a single binary, without clustered mode(which should always be the case when using inmemory ring),
+        // we should start compactor as well for better user experience.
+        if lstore.UsingBoltdbShipper(t.cfg.SchemaConfig.Configs) {
+                deps[All] = append(deps[All], Compactor)
+        }
+
+        for mod, targets := range deps {
+                if err := mm.AddDependency(mod, targets...); err != nil {
+                        return err
+                }
+        }
+
+        t.ModuleManager = mm
+
+        return nil
 }
 
 // InitFromViper initializes the options struct with values from Viper
