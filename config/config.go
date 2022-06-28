@@ -101,6 +101,7 @@ func (t *Loki) setupModuleManager() error {
 
         mm.RegisterModule(Compactor, t.initCompactor)
         mm.RegisterModule(TableManager, t.initTableManager)
+        mm.RegisterModule(Ingester, t.initIngester)
 
         // Add dependencies
         deps := map[string][]string{
