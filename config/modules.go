@@ -16,6 +16,7 @@ import (
         "github.com/grafana/loki/pkg/storage/stores/shipper/compactor"
 	"github.com/grafana/loki/pkg/storage/stores/shipper"
 	"github.com/grafana/loki/pkg/storage/stores/shipper/uploads"
+        "jaeger-s3/s3store/ingester"
 
         "github.com/go-kit/kit/log/level"
 )
@@ -26,6 +27,7 @@ const maxChunkAgeForTableManager = 12 * time.Hour
 const (
 	Compactor       string = "compactor"
         TableManager    string = "table-manager"
+        Ingester        string = "ingester"
         All             string = "all"
 )
 
@@ -72,6 +74,18 @@ func (t *Loki) initTableManager() (services.Service, error) {
         }
 
         return t.tableManager, nil
+}
+
+func (t *Loki) initIngester() (_ services.Service, err error) {
+        t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.Multi.ConfigProvider = multiClientRuntimeConfigChannel(t.runtimeConfig)
+        t.cfg.Ingester.LifecyclerConfig.RingConfig.KVStore.MemberlistKV = t.memberlistKV.GetMemberlistKV
+
+        t.ingester, err = ingester.New(t.cfg.Ingester, t.cfg.IngesterClient, t.store, t.overrides, t.tenantConfigs, prometheus.DefaultRegisterer)
+        if err != nil {
+                return
+        }
+
+        return t.ingester, nil
 }
 
 func (t *Loki) initCompactor() (services.Service, error) {

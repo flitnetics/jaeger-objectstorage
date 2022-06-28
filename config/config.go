@@ -17,8 +17,14 @@ import (
 	"github.com/cortexproject/cortex/pkg/chunk"
         "github.com/cortexproject/cortex/pkg/util/modules"
         "github.com/cortexproject/cortex/pkg/util/services"
+        "github.com/cortexproject/cortex/pkg/ring/kv/memberlist"
+        "github.com/cortexproject/cortex/pkg/util/runtimeconfig"
 
+        "github.com/grafana/loki/pkg/ingester/client"
         "github.com/grafana/loki/pkg/util/validation"
+        "github.com/grafana/loki/pkg/util/runtime"
+
+        "jaeger-s3/s3store/ingester"
 )
 
 // Configuration describes the options to customize the storage behavior
@@ -37,12 +43,14 @@ type Config struct {
 	AuthEnabled bool   `yaml:"auth_enabled,omitempty"`
 	HTTPPrefix  string `yaml:"http_prefix"`
 
-	StorageConfig    lstore.Config              `yaml:"storage_config,omitempty"`
-	ChunkStoreConfig chunk.StoreConfig          `yaml:"chunk_store_config,omitempty"`
-	TableManager     chunk.TableManagerConfig   `yaml:"table_manager,omitempty"`
-	SchemaConfig     lstore.SchemaConfig        `yaml:"schema_config,omitempty"`
-	LimitsConfig     validation.Limits          `yaml:"limits_config,omitempty"`
-	CompactorConfig  compactor.Config           `yaml:"compactor,omitempty"`
+	StorageConfig    lstore.Config               `yaml:"storage_config,omitempty"`
+	ChunkStoreConfig chunk.StoreConfig           `yaml:"chunk_store_config,omitempty"`
+	TableManager     chunk.TableManagerConfig    `yaml:"table_manager,omitempty"`
+	SchemaConfig     lstore.SchemaConfig         `yaml:"schema_config,omitempty"`
+	LimitsConfig     validation.Limits           `yaml:"limits_config,omitempty"`
+	CompactorConfig  compactor.Config            `yaml:"compactor,omitempty"`
+        Ingester         ingester.Config             `yaml:"ingester,omitempty"`
+        IngesterClient   client.Config               `yaml:"ingester_client,omitempty"`
 }
 
 // Loki is the root datastructure for Loki.
@@ -55,6 +63,12 @@ type Loki struct {
 
         compactor       *compactor.Compactor
         tableManager    *chunk.TableManager
+        ingester        *ingester.Ingester
+        overrides       *validation.Overrides
+        tenantConfigs   *runtime.TenantConfigs
+        store           lstore.Store
+        runtimeConfig   *runtimeconfig.Manager
+        memberlistKV    *memberlist.KVInitService
 }
 
 func (c *Config) Validate() error {
@@ -87,6 +101,7 @@ func (t *Loki) setupModuleManager() error {
 
         mm.RegisterModule(Compactor, t.initCompactor)
         mm.RegisterModule(TableManager, t.initTableManager)
+        mm.RegisterModule(Ingester, t.initIngester)
 
         // Add dependencies
         deps := map[string][]string{
