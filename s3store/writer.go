@@ -145,19 +145,20 @@ func (w *Writer) WriteSpan(span *model.Span) error {
 
 	addedChunkIDs := map[string]struct{}{}
         plogline := fmt.Sprintf("level=info caller=jaeger component=chunks latency=\"%s\"", span.Duration)
+        chks := []chunk.Chunk{}
 	for _, tr := range chunksToBuildForTimeRanges {
 
                 // span chunk
                 chk := newChunk(buildTestStreams(spanLabelsWithName, tr, plogline))
-
-                // upload the span chunks
-                err := w.store.PutOne(ctx, chk.From, chk.Through, chk)
-                if err != nil {
-                        log.Println("store spans Put error: %s", err)
-                }
-
+                chks = append(chks, chk)
                 addedChunkIDs[chk.ExternalKey()] = struct{}{}
 	}
+
+        // upload the span chunks
+        err := w.store.Put(ctx, chks)
+        if err != nil {
+                log.Println("store spans Put error: %s", err)
+        }
 
 	return nil
 }
