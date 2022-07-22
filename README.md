@@ -19,6 +19,12 @@ Works with [Kiali](https://kiali.io).
 
 **Version 2 of this plugin is not compatible with Version 1**
 
+The configuration is mostly identical on how you configure storage, indexes, compactors, rulers, etc in [Loki](https://github.com/grafana/loki).
+
+With this plugin, you won't need to run and maintain Tempo, at all!
+
+Works with [Kiali](https://kiali.io).
+
 ## Build/Compile
 In order to compile the plugin from source code you can use `go build`:
 
