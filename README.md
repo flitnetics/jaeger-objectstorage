@@ -5,15 +5,11 @@ You are free to use this software under a permissive open-source MIT license. To
 ## About
 S3, Google Cloud Storage(GCS) and Microsoft Azure Blob Storage object storage support for Jaeger. 
 
-Amazon DynamoDB and Google BigTable for indexes **may** work with some changes to configuration file. Reports on testing on these storage backends is appreciated.
+Amazon DynamoDB and Google BigTable for indexes should work as this code. How loki can be configured, the configuration is mostly identical on how you configure storage and indexes.
 
 With this plugin, you won't need to run and maintain Tempo, at all!
-## Preresquities
-None. No longer needs my custom jaeger code. Just use the official ones.
 
-You can now use this plugin with Jaeger Operator/Helmchart/K8s since there are no dependency on my custom Jaeger code.
-
-Scroll down to the end to see how to do a demo for Jaeger Operator on Kubernetes.
+Works with [Kiali](https://kiali.io).
 
 ## Build/Compile
 In order to compile the plugin from source code you can use `go build`:
@@ -42,11 +38,10 @@ schema_config:
       index:
         prefix: index_
         period: 24h
-      row_shards: 10
+      row_shards: 32
 
 storage_config:
   aws:
-    bucketnames: bucketname
     region: ap-southeast-1
     access_key_id: aws_access_key_id
     secret_access_key: aws_secret_access_key
@@ -54,11 +49,10 @@ storage_config:
     http_config:
       idle_conn_timeout: 90s
       response_header_timeout: 0s
-      tls_handshake_timeout: 3s # change this to something larger if you have `TLS Handshake Timeout` or 0 to disable timeout
   boltdb_shipper:
     active_index_directory: /tmp/loki/boltdb-shipper-active
     cache_location: /tmp/loki/boltdb-shipper-cache
-    cache_ttl: 24h         # Can be increased for faster performance over longer query periods, uses more disk space
+    cache_ttl: 24h
     shared_store: s3
   filesystem:
     directory: /tmp/loki/chunks
@@ -66,40 +60,38 @@ storage_config:
 compactor:
   working_directory: /tmp/loki/boltdb-shipper-compactor
   shared_store: s3
+
+limits_config:
+  enforce_metric_name: false
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+memberlist:
+  abort_if_cluster_join_fails: false
+
+  max_join_backoff: 1m
+  max_join_retries: 10
+  min_join_backoff: 1s
+
+distributor:
+  ring:
+    kvstore:
+      store: memberlist
+
+ingester:
+  lifecycler:
+    ring:
+      kvstore:
+        store: memberlist
+      replication_factor: 1
+    final_sleep: 0s
+  chunk_idle_period: 5m
+  chunk_retain_period: 30s
 ```
 
-Sample basic config (AWS with Retention for 28 days)
+Changes for AWS with Retention for 28 days
+**(Update and add the necessary bits like above, ie. "compactor" and "table_manager")**
 ```
-schema_config:
-  configs:
-    - from: 2018-10-24
-      store: boltdb-shipper
-      object_store: s3
-      schema: v11
-      index:
-        prefix: index_
-        period: 24h
-      row_shards: 10
-
-storage_config:
-  aws:
-    bucketnames: bucketname
-    region: ap-southeast-1
-    access_key_id: aws_access_key_id
-    secret_access_key: aws_secret_access_key
-    endpoint: s3.ap-southeast-1.amazonaws.com
-    http_config:
-      idle_conn_timeout: 90s
-      response_header_timeout: 0s
-      tls_handshake_timeout: 3s # change this to something larger if you have `TLS Handshake Timeout` or 0 to disable timeout
-  boltdb_shipper:
-    active_index_directory: /tmp/loki/boltdb-shipper-active
-    cache_location: /tmp/loki/boltdb-shipper-cache
-    cache_ttl: 24h         # Can be increased for faster performance over longer query periods, uses more disk space
-    shared_store: s3
-  filesystem:
-    directory: /tmp/loki/chunks
-
 compactor:
   working_directory: /tmp/loki/boltdb-shipper-compactor
   shared_store: s3
@@ -123,10 +115,10 @@ storage_config:
     http_config:
       idle_conn_timeout: 90s
       response_header_timeout: 0s
-      tls_handshake_timeout: 3s # change this to something larger if you have `TLS Handshake Timeout` or 0 to disable timeout
 ```
 
 Sample basic config (GCS):
+**replace the necessary parts from the "Sample basic config (AWS)" above**
 ```
 storage_config:
   boltdb_shipper:
@@ -146,6 +138,7 @@ schema_config:
       index:
         prefix: index_
         period: 24h
+      row_shards: 32
 
 compactor:
   working_directory: /tmp/loki/boltdb-shipper-compactor
@@ -153,6 +146,7 @@ compactor:
 ```
 
 Sample basic config (Azure BlobStorage):
+**replace the necessary parts from the "Sample basic config (AWS)" above**
 ```
 schema_config:
   configs:
@@ -163,6 +157,7 @@ schema_config:
       index:
         prefix: index_
         period: 24h
+      row_shards: 32
 
 storage_config:
   boltdb_shipper:
