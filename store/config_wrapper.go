@@ -13,7 +13,7 @@ import (
 	"github.com/grafana/loki/pkg/loki/common"
 	"github.com/grafana/loki/pkg/storage/chunk/cache"
 	"github.com/grafana/loki/pkg/util"
-	"github.com/grafana/loki/pkg/util/cfg"
+	"jaeger-objectstorage/util/cfg"
 
 	"github.com/grafana/loki/pkg/ruler/rulestore/local"
 	loki_storage "github.com/grafana/loki/pkg/storage"

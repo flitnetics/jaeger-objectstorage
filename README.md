@@ -17,12 +17,20 @@ With this plugin, you won't need to run and maintain Tempo, at all!
 
 Works with [Kiali](https://kiali.io).
 
+**Version 2 of this plugin is not compatible with Version 1**
+
+The configuration is mostly identical on how you configure storage, indexes, compactors, rulers, etc in [Loki](https://github.com/grafana/loki).
+
+With this plugin, you won't need to run and maintain Tempo, at all!
+
+Works with [Kiali](https://kiali.io).
+
 ## Build/Compile
 In order to compile the plugin from source code you can use `go build`:
 
 ```
-cd /path/to/jaeger-s3
-go build ./cmd/jaeger-s3/
+cd /path/to/jaeger-objectstorage
+go build ./cmd/jaeger-objectstorage
 ```
 
 ## Configuration
@@ -184,7 +192,7 @@ compactor:
 In order to start plugin just tell jaeger the path to a config compiled plugin.
 
 ```
-GRPC_STORAGE_PLUGIN_BINARY="./jaeger-s3" GRPC_STORAGE_PLUGIN_CONFIGURATION_FILE=./config-example.yaml SPAN_STORAGE_TYPE=grpc-plugin  GRPC_STORAGE_PLUGIN_LOG_LEVEL=DEBUG ./all-in-one --sampling.strategies-file=/location/of/your/jaeger/cmd/all-in-one/sampling_strategies.json
+GRPC_STORAGE_PLUGIN_BINARY="./jaeger-objectstorage" GRPC_STORAGE_PLUGIN_CONFIGURATION_FILE=./config-example.yaml SPAN_STORAGE_TYPE=grpc-plugin  GRPC_STORAGE_PLUGIN_LOG_LEVEL=DEBUG ./all-in-one --sampling.strategies-file=/location/of/your/jaeger/cmd/all-in-one/sampling_strategies.json
 ```
 
 For Jaeger Operator on Kubernetes for testing/demo **!!NOT PRODUCTION!!**, sample manifest:
@@ -226,7 +234,7 @@ spec:
 apiVersion: jaegertracing.io/v1
 kind: Jaeger
 metadata:
-  name: jaeger-s3
+  name: jaeger-objectstorage
 spec:
   strategy: allInOne
   allInOne:
@@ -236,10 +244,10 @@ spec:
   storage:
     type: grpc-plugin
     grpcPlugin:
-      image: ghcr.io/muhammadn/jaeger-s3:latest
+      image: ghcr.io/muhammadn/jaeger-objectstorage:latest
     options:
       grpc-storage-plugin:
-        binary: /plugin/jaeger-s3
+        binary: /plugin/jaeger-objectstorage
         configuration-file: /plugin-config/config-example.yaml
         log-level: debug
   volumeMounts:
@@ -248,7 +256,7 @@ spec:
   volumes:
     - name: config-volume
       configMap:
-        name: jaeger-s3-config
+        name: jaeger-objectstorage-config
 ---
 apiVersion: v1
 data:
@@ -262,7 +270,7 @@ data:
           index:
             prefix: index_
             period: 24h
-          row_shards: 10
+          row_shards: 32
 
     storage_config:
       aws:
@@ -274,7 +282,6 @@ data:
         http_config:
           idle_conn_timeout: 90s
           response_header_timeout: 0s
-          tls_handshake_timeout: 3s # change this to something larger if you have `TLS Handshake Timeout` or 0 to disable timeout
       boltdb_shipper:
         active_index_directory: /tmp/loki/boltdb-shipper-active
         cache_location: /tmp/loki/boltdb-shipper-cache
@@ -286,9 +293,36 @@ data:
     compactor:
       working_directory: /tmp/loki/boltdb-shipper-compactor
       shared_store: s3
+
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+
+    memberlist:
+      abort_if_cluster_join_fails: false
+
+      max_join_backoff: 1m
+      max_join_retries: 10
+      min_join_backoff: 1s
+
+    distributor:
+      ring:
+        kvstore:
+          store: memberlist
+
+    ingester:
+      lifecycler:
+        ring:
+          kvstore:
+            store: memberlist
+          replication_factor: 1
+        final_sleep: 0s
+      chunk_idle_period: 5m
+      chunk_retain_period: 30s
 kind: ConfigMap
 metadata:
-  name: jaeger-s3-config
+  name: jaeger-objectstorage-config
 ```
 
 ## License
