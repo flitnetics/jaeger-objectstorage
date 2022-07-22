@@ -1,4 +1,4 @@
-module jaeger-s3
+module jaeger-objectstorage
 
 go 1.16
 
