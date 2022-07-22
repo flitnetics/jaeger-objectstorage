@@ -5,7 +5,7 @@ before:
     # You may remove this if you don't use go modules.
     - go mod tidy
 builds:
-  - main: ./cmd/jaeger-s3
+  - main: ./cmd/jaeger-objectstorage
     env:
       - CGO_ENABLED=0
     goos:
