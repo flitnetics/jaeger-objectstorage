@@ -12,6 +12,7 @@ import (
         "net/http"
         "net/url"
 	"io/ioutil"
+        "strconv"
 
         "github.com/weaveworks/common/user"
 
@@ -393,6 +394,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 
        builder, _, _ := buildTraceWhere(query)
        var fooLabelsWithName = builder
+
        m := make(map[string]bool)
        var traceIdsLow []string
 
@@ -408,10 +410,6 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
        for _, chunk := range chunks {
                // we decode the logfmt data in values
                // please refactor this decoder out to common code
-               //var serviceName string
-               //var processId string
-               //var processTags map[string]interface{}
-
                for _, value := range chunk.SValues {
 
                        // query based on trace ID
@@ -420,6 +418,7 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
                                for d.ScanKeyval() {
                                        if string(d.Key()) == "trace_id_low" {
                                                traceIdLow := string(d.Value()) 
+                                                // make sure trace id is unique
                                                if !m[traceIdLow] {
                                                        traceIdsLow = append(traceIdsLow, traceIdLow)
                                                        m[traceIdLow] = true
@@ -436,8 +435,6 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 
        // final query
        // now we get the real values
-       //log.Println("lowTraceIds: ", traceIdsLow)
-
        for _, traceIDLow := range traceIdsLow {
 
                fooLabelsWithName = fmt.Sprintf("{env=\"prod\"} |= `trace_id_low=\"%s\"`", traceIDLow)
@@ -504,7 +501,47 @@ func (r *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPara
 
 // FindTraceIDs retrieve traceIDs that match the traceQuery
 func (r *Reader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) (ret []model.TraceID, err error) {
-	return []model.TraceID{}, err
+        builder, _, _ := buildTraceWhere(query)
+
+        var fooLabelsWithName = builder
+
+        spans, err := GetSpansRange(r, fooLabelsWithName, query.StartTimeMin, query.StartTimeMax, uint32(query.NumTraces))
+        if err != nil {
+                log.Println("Unable to get FindTraceIDs span!")
+        }
+        chunks := spans.Result.Stream
+
+        var trace model.TraceID
+        var traces []model.TraceID
+        for _, chunk := range chunks {
+                // we decode the logfmt data in values
+                // please refactor this decoder out to common code
+                for _, value := range chunk.SValues {
+
+                        // query based on trace ID
+                        d := logfmt.NewDecoder(strings.NewReader(value[1]))
+                        for d.ScanRecord() {
+                                for d.ScanKeyval() {
+                                        if string(d.Key()) == "trace_id_low" {
+                                                low, _ := strconv.ParseUint(string(d.Value()), 10, 64) 
+                                                trace.Low = low
+                                        }
+                                        if string(d.Key()) == "trace_id_high" {
+                                                high, _ := strconv.ParseUint(string(d.Value()), 10, 64)
+                                                trace.High = high
+                                        }
+                                }
+                        }
+                        if d.Err() != nil {
+                                log.Println("decoding logfmt error!", d.Err())
+                        }
+                        // end of decode
+                        traces = append(traces, trace)
+
+                }      
+        }
+
+        return traces, err
 }
 
 // GetDependencies returns all inter-service dependencies
