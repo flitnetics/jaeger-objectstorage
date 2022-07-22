@@ -287,6 +287,33 @@ data:
     compactor:
       working_directory: /tmp/loki/boltdb-shipper-compactor
       shared_store: s3
+
+    limits_config:
+      enforce_metric_name: false
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+
+    memberlist:
+      abort_if_cluster_join_fails: false
+
+      max_join_backoff: 1m
+      max_join_retries: 10
+      min_join_backoff: 1s
+
+    distributor:
+      ring:
+        kvstore:
+          store: memberlist
+
+    ingester:
+      lifecycler:
+        ring:
+          kvstore:
+            store: memberlist
+          replication_factor: 1
+        final_sleep: 0s
+      chunk_idle_period: 5m
+      chunk_retain_period: 30s
 kind: ConfigMap
 metadata:
   name: jaeger-objectstorage-config
