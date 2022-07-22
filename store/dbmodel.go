@@ -1,4 +1,4 @@
-package s3store
+package loki
 
 import (
 	"time"
