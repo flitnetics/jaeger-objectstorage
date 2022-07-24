@@ -238,7 +238,7 @@ spec:
   storage:
     type: grpc-plugin
     grpcPlugin:
-      image: ghcr.io/muhammadn/jaeger-objectstorage:latest
+      image: ghcr.io/flitnetics/jaeger-objectstorage:latest
     options:
       grpc-storage-plugin:
         binary: /plugin/jaeger-objectstorage
