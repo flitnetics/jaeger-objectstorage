@@ -15,10 +15,10 @@ import (
 
 	"github.com/grafana/loki/pkg/util"
 	_ "github.com/grafana/loki/pkg/util/build"
-	"github.com/grafana/loki/pkg/util/cfg"
+	"jaeger-objectstorage/util/cfg"
 	util_log "github.com/grafana/loki/pkg/util/log"
 	"github.com/grafana/loki/pkg/validation"
-        "jaeger-s3/store"
+        "jaeger-objectstorage/store"
 
         "github.com/jaegertracing/jaeger/plugin/storage/grpc"
         "github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"

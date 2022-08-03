@@ -4,6 +4,6 @@ config-example.yaml
 *.orig
 all-in-one
 .DS_Store
-jaeger-objectstorage
+/jaeger-objectstorage
 jaeger-s3-linux-amd64.gz
 dist/
