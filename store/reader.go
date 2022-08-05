@@ -247,7 +247,7 @@ func extractOperations(a sLokiData) []string {
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (r *Reader) GetOperations(ctx context.Context, param spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
-        var fooLabelsWithName = "count_over_time({env=\"prod\"}[1h])"
+        var fooLabelsWithName = fmt.Sprintf("count_over_time({env=\"prod\", service_name=\"%s\"}[1h])", param.ServiceName)
 
         // get the chunks
         chunks, err := GetSpans(uint32(1000), fooLabelsWithName)
