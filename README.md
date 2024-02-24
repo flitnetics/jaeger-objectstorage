@@ -1,7 +1,7 @@
-This is the repository that contains object storage (S3/GCS/AzureBlob) plugin for Jaeger.
+This is the repository that contains object storage connector for Jaeger.
 
 ## About
-S3, Google Cloud Storage(GCS) and Microsoft Azure Blob Storage object storage support for Jaeger. 
+Jaeger connector to Tempo
 
 **Version 3 of this plugin is not compatible with Version 2**
 
@@ -14,6 +14,9 @@ go build ./cmd/jaeger-objectstorage
 ```
 
 ## Configuration
+### Requirements
+Use our fork of tempo [https://github.com/flitnetics/tempo](HERE)
+
 #### Backend
 ```config.yaml
 backend: your.tempo.backend:3200
