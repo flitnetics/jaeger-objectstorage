@@ -2,8 +2,6 @@ module jaeger-objectstorage
 
 go 1.21
 
-toolchain go1.21.6
-
 require (
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0
