@@ -15,9 +15,9 @@ go build ./cmd/jaeger-objectstorage
 
 ## Configuration
 ### Requirements
-Use our fork of tempo [https://github.com/flitnetics/tempo](HERE)
+Use our fork of tempo [https://github.com/flitnetics/tempo](https://github.com/flitnetics/tempo)
 
-#### Backend
+## Backend Configuration
 ```config.yaml
 backend: your.tempo.backend:3200
 ```
