@@ -2,132 +2,94 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"os"
-	"reflect"
-	"runtime"
+	"io"
+	"strings"
 
-	"github.com/go-kit/log/level"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/version"
-	"github.com/weaveworks/common/logging"
-	"github.com/weaveworks/common/tracing"
+	"github.com/hashicorp/go-hclog"
+	hcplugin "github.com/hashicorp/go-plugin"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
+	otgrpc "github.com/opentracing-contrib/go-grpc"
+	"github.com/opentracing/opentracing-go"
+	"github.com/spf13/viper"
+	jaeger_config "github.com/uber/jaeger-client-go/config"
+	google_grpc "google.golang.org/grpc"
 
-	"github.com/grafana/loki/pkg/util"
-	_ "github.com/grafana/loki/pkg/util/build"
-	"jaeger-objectstorage/util/cfg"
-	util_log "github.com/grafana/loki/pkg/util/log"
-	"github.com/grafana/loki/pkg/validation"
-        "jaeger-objectstorage/store"
-
-        "github.com/jaegertracing/jaeger/plugin/storage/grpc"
-        "github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-
-        "github.com/hashicorp/go-hclog"
+	"jaeger-objectstorage/store"
 )
 
 func main() {
-        logger := hclog.New(&hclog.LoggerOptions{
-                Name:  "jaeger-s3",
-                Level: hclog.Warn, // Jaeger only captures >= Warn, so don't bother logging below Warn
-        })
+	logger := hclog.New(&hclog.LoggerOptions{
+		Name:       "jaeger-tempo",
+		Level:      hclog.Error, // Jaeger only captures >= Warn, so don't bother logging below Warn
+		JSONFormat: true,
+	})
 
-	var config loki.ConfigWrapper
+	var configPath string
+	flag.StringVar(&configPath, "config", "", "A path to the plugin's configuration file")
+	flag.Parse()
 
-	if err := cfg.DynamicUnmarshal(&config, os.Args[1:], flag.CommandLine); err != nil {
-		fmt.Fprintf(os.Stderr, "failed parsing config: %v\n", err)
-		os.Exit(1)
+	v := viper.New()
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+
+	if configPath != "" {
+		v.SetConfigFile(configPath)
+
+		err := v.ReadInConfig()
+		if err != nil {
+			logger.Error("failed to parse configuration file", "error", err)
+		}
 	}
-	if config.PrintVersion {
-		fmt.Println(version.Print("jaeger-s3"))
-		os.Exit(0)
-	}
 
-	// This global is set to the config passed into the last call to `NewOverrides`. If we don't
-	// call it atleast once, the defaults are set to an empty struct.
-	// We call it with the flag values so that the config file unmarshalling only overrides the values set in the config.
-	validation.SetDefaultLimitsForYAMLUnmarshalling(config.LimitsConfig)
-
-	// Init the logger which will honor the log level set in config.Server
-	if reflect.DeepEqual(&config.Server.LogLevel, &logging.Level{}) {
-		level.Error(util_log.Logger).Log("msg", "invalid log level")
-		os.Exit(1)
-	}
-	util_log.InitLogger(&config.Server, prometheus.DefaultRegisterer)
-
-	// Validate the config once both the config file has been loaded
-	// and CLI flags parsed.
-	err := config.Validate()
+	closer, err := initJaeger("tempo-grpc-plugin")
 	if err != nil {
-		level.Error(util_log.Logger).Log("msg", "validating config", "err", err.Error())
-		os.Exit(1)
+		logger.Error("failed to init tracer", "error", err)
+	}
+	defer closer.Close()
+
+	cfg := &store.Config{}
+	cfg.InitFromViper(v)
+
+	backend, err := store.New(cfg)
+	if err != nil {
+		logger.Error("failed to init tracer backend", "error", err)
+	}
+	plugin := &plugin{backend: backend}
+	grpc.ServeWithGRPCServer(&shared.PluginServices{
+		Store: plugin,
+	}, func(options []google_grpc.ServerOption) *google_grpc.Server {
+		return hcplugin.DefaultGRPCServer([]google_grpc.ServerOption{
+			google_grpc.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(opentracing.GlobalTracer())),
+			google_grpc.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(opentracing.GlobalTracer())),
+		})
+	})
+}
+
+type plugin struct {
+	backend *store.Backend
+}
+
+func (p *plugin) DependencyReader() dependencystore.Reader {
+	return p.backend
+}
+
+func (p *plugin) SpanReader() spanstore.Reader {
+	return p.backend
+}
+
+func (p *plugin) SpanWriter() spanstore.Writer {
+	return p.backend
+}
+
+func initJaeger(service string) (io.Closer, error) {
+	// .FromEnv() uses standard environment variables to allow for easy configuration
+	cfg, err := jaeger_config.FromEnv()
+	if err != nil {
+		return nil, err
 	}
 
-	if config.PrintConfig {
-		err := util.PrintConfig(os.Stderr, &config)
-		if err != nil {
-			level.Error(util_log.Logger).Log("msg", "failed to print config to stderr", "err", err.Error())
-		}
-	}
-
-	if config.LogConfig {
-		err := util.LogConfig(&config)
-		if err != nil {
-			level.Error(util_log.Logger).Log("msg", "failed to log config object", "err", err.Error())
-		}
-	}
-
-	if config.VerifyConfig {
-		level.Info(util_log.Logger).Log("msg", "config is valid")
-		os.Exit(0)
-	}
-
-	if config.Tracing.Enabled {
-		// Setting the environment variable JAEGER_AGENT_HOST enables tracing
-		trace, err := tracing.NewFromEnv(fmt.Sprintf("loki-%s", config.Target))
-		if err != nil {
-			level.Error(util_log.Logger).Log("msg", "error in initializing tracing. tracing will not be enabled", "err", err)
-		}
-		defer func() {
-			if trace != nil {
-				if err := trace.Close(); err != nil {
-					level.Error(util_log.Logger).Log("msg", "error closing tracing", "err", err)
-				}
-			}
-
-		}()
-	}
-
-	// Allocate a block of memory to reduce the frequency of garbage collection.
-	// The larger the ballast, the lower the garbage collection frequency.
-	// https://github.com/grafana/loki/issues/781
-	ballast := make([]byte, config.BallastBytes)
-	runtime.KeepAlive(ballast)
-
-        var store *loki.Storag
-        var closeStore func() error
-        var t *loki.Loki
-
-	// Start Loki
-	t, store, closeStore, err = loki.New(config.Config, logger)
-	util_log.CheckFatal("initialising jaeger-s3", err, util_log.Logger)
-
-	if config.ListTargets {
-		t.ListTargets()
-		os.Exit(0)
-	}
-
-	level.Info(util_log.Logger).Log("msg", "Starting Jaeger-S3", "version", version.Info())
-        err = t.Run(loki.RunOpts{})
-
-        util_log.CheckFatal("running jaeger-s3", err, util_log.Logger)
-
-        grpc.Serve(&shared.PluginServices{
-                Store:        store,
-        })
-
-        if err = closeStore(); err != nil {
-                logger.Error("failed to close store", "error", err)
-                os.Exit(1)
-        }
+	return cfg.InitGlobalTracer(service)
 }
