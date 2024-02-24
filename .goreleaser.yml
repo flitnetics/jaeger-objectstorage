@@ -25,5 +25,3 @@ changelog:
     exclude:
       - '^docs:'
       - '^test:'
-build:
-  skip: true
