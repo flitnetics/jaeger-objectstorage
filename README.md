@@ -28,12 +28,68 @@ To make it simpler, we have built a docker image for our tempo fork:
 Expose ports for tempo image's container: 3200,4317,4318
 
 Explanation: 
- tempo backend: 3200
- otel grpc: 4317
- otel http: 4318
+  * tempo backend: 3200
+  * otel grpc: 4317
+  * otel http: 4318
 
 We try to match to the same stable version from upstream tempo with our own modifications.
 
+Example Tempo configuration for demo purposes:
+```
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:                           # this configuration will listen on all ports and protocols that tempo is capable of.
+    jaeger:                            # the receives all come from the OpenTelemetry collector.  more configuration information can
+      protocols:                       # be found there: https://github.com/open-telemetry/opentelemetry-collector/tree/main/receiver
+        thrift_http:                   #
+        grpc:                          # for a production deployment you should only enable the receivers you need!
+        thrift_binary:
+        thrift_compact:
+    zipkin:
+    otlp:
+      protocols:
+        http:
+        grpc:
+    opencensus:
+
+ingester:
+  max_block_duration: 5m               # cut the headblock when this much time passes. this is being set for demo purposes and should probably be left alone normally
+
+compactor:
+  compaction:
+    block_retention: 1h                # overall Tempo trace retention. set for demo purposes
+
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: docker-compose
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
+storage:
+  trace:
+    backend: s3                        # backend configuration to use
+    wal:
+      path: /tmp/tempo/wal             # where to store the the wal locally
+    s3:
+      bucket: tempo                    # how to store data in s3
+      endpoint: yours3endpoint
+      access_key: s3accesskey
+      secret_key: s3secret
+      insecure: true
+      # For using AWS, select the appropriate regional endpoint and region
+      # endpoint: s3.dualstack.us-west-2.amazonaws.com
+      # region: us-west-2
+
+overrides:
+  metrics_generator_processors: [service-graphs, span-metrics]
+```
 ## Backend Configuration
 This file is placed in your plugin's directory (see the next section to understand more).
 
