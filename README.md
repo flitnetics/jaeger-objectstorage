@@ -1,5 +1,7 @@
 This is the repository that contains object storage connector for Jaeger.
 
+For support questions, please go to [https://community.flitnetics.com](https://community.flitnetics.com)
+
 ## About
 Jaeger connector to Tempo
 

@@ -87,4 +87,4 @@ replace go.opentelemetry.io/collector => github.com/grafana/opentelemetry-collec
 // merged upstream yet: https://github.com/hashicorp/memberlist/pull/260
 replace github.com/hashicorp/memberlist => github.com/grafana/memberlist v0.2.5-0.20211201083710-c7bc8e9df94b
 
-replace github.com/grafana/tempo => ../tempo
+replace github.com/grafana/tempo => github.com/flitnetics/tempo v1.5.1-0.20240224233500-ef27d443d243
