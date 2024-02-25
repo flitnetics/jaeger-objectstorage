@@ -6,6 +6,8 @@ For support questions, please go to [https://community.flitnetics.com](https://c
 Jaeger connector to Tempo
 
 **Version 3 of this plugin is not compatible with Version 2**
+
+
 Version 3 is written with OTEL specifications to make it interoperate better.
 
 ## Build/Compile
