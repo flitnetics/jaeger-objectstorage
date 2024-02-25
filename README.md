@@ -91,7 +91,7 @@ overrides:
   metrics_generator_processors: [service-graphs, span-metrics]
 ```
 ## Backend Configuration
-This file is placed in your plugin's directory (see the next section to understand more).
+This file is placed in your plugin's directory (see the next section about `config.yml` to understand more).
 
 ```config.yaml
 backend: your.tempo.backend:3200
