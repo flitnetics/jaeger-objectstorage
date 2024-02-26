@@ -127,6 +127,10 @@ docker run \                                                                    
   jaegertracing/example-hotrod:latest \
   all
 ```
+
+## Kubernetes (TODO)
+This is still a work in progress. We will document operator configuration here.
+
 ## License
 
 The Object Storage gRPC Plugin for Jaeger is an [Apache licensed](LICENSE) open source project.
