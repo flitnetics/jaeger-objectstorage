@@ -130,10 +130,10 @@ docker run \                                                                    
 
 ## TODO
 ### Allow traces to be aggregated to Jaeger collector
-This is in progress and is priority.
+This is in progress and is [priority](https://github.com/flitnetics/jaeger-objectstorage/issues/96).
 
 ### Kubernetes (TODO)
-This is still a work in progress. We will document operator configuration here.
+This is still a [work in progress](https://github.com/flitnetics/jaeger-objectstorage/issues/94). We will document operator configuration here.
 
 ## License
 
