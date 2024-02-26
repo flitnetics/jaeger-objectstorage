@@ -128,7 +128,11 @@ docker run \                                                                    
   all
 ```
 
-## Kubernetes (TODO)
+## TODO
+### Allow traces to be aggregated to Jaeger collector
+This is in progress and is priority.
+
+### Kubernetes (TODO)
 This is still a work in progress. We will document operator configuration here.
 
 ## License
