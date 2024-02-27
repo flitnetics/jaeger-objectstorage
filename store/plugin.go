@@ -26,7 +26,8 @@ import (
 	jaeger "github.com/jaegertracing/jaeger/model"
 	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
-	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+        // flitnetics
+     	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 )
 
 const (
@@ -415,6 +416,38 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 }
 
 func (b *Backend) WriteSpan(context.Context, *jaeger.Span) error {
+        var spanLabelsWithName = fmt.Sprintf("{env=\"prod\", id=\"%d\", trace_id_low=\"%d\", trace_id_high=\"%d\", flags=\"%d\", duration=\"%d\", tags=\"%s\", process_id=\"%s\", process_tags=\"%s\", warnings=\"%s\", service_name=\"%s\", operation_name=\"%s\", start_time=\"%s\"}",
+        span.SpanID,
+        span.TraceID.Low,
+        span.TraceID.High,
+        span.Flags,
+        span.Duration,
+        mapModelKV(span.Tags),
+        span.ProcessID,
+        mapModelKV(span.Process.Tags),
+        span.Warnings,
+        span.Process.ServiceName,
+        span.OperationName,
+        startTime)
+
+	expectedSpan := &tracepb.Span{
+		TraceId:                []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F},
+		SpanId:                 []byte{0xFF, 0xFE, 0xFD, 0xFC, 0xFB, 0xFA, 0xF9, 0xF8},
+		ParentSpanId:           []byte{},
+		TraceState:             "key1=val1,key2=val2",
+		Name:                   span.OperationName,
+		Kind:                   tracepb.Span_SPAN_KIND_SERVER,
+		StartTimeUnixNano:      uint64(span.StartTime),
+		EndTimeUnixNano:        uint64(endTime.UnixNano() - span.StartTime),
+		Status:                 status(spanData.Status.Code, spanData.Status.Description),
+		Events:                 spanEvents(spanData.Events),
+		Links:                  links(spanData.Links),
+		Attributes:             KeyValues(spanData.Attributes),
+		DroppedAttributesCount: 1,
+		DroppedEventsCount:     2,
+		DroppedLinksCount:      3,
+	}
+
 	return nil
 }
 
