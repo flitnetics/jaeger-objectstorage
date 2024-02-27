@@ -23,10 +23,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/metadata"
 
-	jaeger "github.com/jaegertracing/jaeger/model"
-	jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
+        jaeger "github.com/jaegertracing/jaeger/model"
+        jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
-	ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+        ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 )
 
 const (
@@ -414,7 +415,36 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 	return searchLookupResponse.TagValues, nil
 }
 
-func (b *Backend) WriteSpan(context.Context, *jaeger.Span) error {
+type client struct {
+	uploadErr error
+}
+
+func (b *Backend) WriteSpan(ctx context.Context, span *jaeger.Span) error {
+	var spans []*jaeger.Span
+	spans = append(spans, span)
+
+	exp, err := otlptrace.New(ctx, &client{
+		uploadErr: context.Canceled,
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(spans) > 10 {
+		exp.Start(ctx)
+
+		traces, err := modelToOTLP(spans)
+		if err != nil {
+			return err
+		}
+
+		err = exp.ExportSpans(ctx, traces)
+		if err != nil {
+                	return err
+		}
+
+		exp.Shutdown(ctx)
+	}
 	return nil
 }
 
@@ -452,4 +482,9 @@ func extractBearerToken(ctx context.Context, tenantHeader string) (string, bool)
 
 	}
 	return "", false
+}
+
+func modelToOTLP(spans []*jaeger.Span) (ptrace.Traces, error) {
+	batch := &jaeger.Batch{Spans: spans}
+	return ot_jaeger.ProtoToTraces([]*jaeger.Batch{batch})
 }
