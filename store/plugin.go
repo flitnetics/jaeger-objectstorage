@@ -27,6 +27,7 @@ import (
         jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
         ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 )
 
 const (
@@ -414,9 +415,36 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 	return searchLookupResponse.TagValues, nil
 }
 
-func (b *Backend) WriteSpan(context.Context, span *jaeger.Span) error {
-	var spans []*model.Batch
-	append(spans, span)
+type client struct {
+	uploadErr error
+}
+
+func (b *Backend) WriteSpan(ctx context.Context, span *jaeger.Span) error {
+	var spans []*jaeger.Span
+	spans = append(spans, span)
+
+	exp, err := otlptrace.New(ctx, &client{
+		uploadErr: context.Canceled,
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(spans) > 10 {
+		exp.Start(ctx)
+
+		traces, err := modelToOTLP(spans)
+		if err != nil {
+			return err
+		}
+
+		err = exp.ExportSpans(ctx, traces)
+		if err != nil {
+                	return err
+		}
+
+		exp.Shutdown(ctx)
+	}
 	return nil
 }
 
@@ -456,13 +484,7 @@ func extractBearerToken(ctx context.Context, tenantHeader string) (string, bool)
 	return "", false
 }
 
-// utility function, convert unsigned integer to big endian byte array
-func intToByteArray(num uint64) []byte {
-	size := int(unsafe.Sizeof(num))
-	arr := make([]byte, size)
-	for i := 0; i < size; i++ {
-		byt := *(*uint8)(unsafe.Pointer(uintptr(unsafe.Pointer(&num)) + uintptr(i)))
-		arr[size-i-1] = byt // big endian
-	}
-	return arr
+func modelToOTLP(spans []*jaeger.Span) (ptrace.Traces, error) {
+	batch := &jaeger.Batch{Spans: spans}
+	return ot_jaeger.ProtoToTraces([]*jaeger.Batch{batch})
 }
