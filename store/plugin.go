@@ -23,10 +23,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/metadata"
 
-	jaeger "github.com/jaegertracing/jaeger/model"
+        jaeger "github.com/jaegertracing/jaeger/model"
+        jaeger_spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
 
-        // flitnetics
-     	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
+        ot_jaeger "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/jaeger"
 )
 
 const (
@@ -415,27 +415,8 @@ func (b *Backend) lookupTagValues(ctx context.Context, span opentracing.Span, ta
 }
 
 func (b *Backend) WriteSpan(context.Context, span *jaeger.Span) error {
-	traceId := intToByteArray(span.TraceID.Low)
-	spanId := intToByteArray(span.SpanId)
-
-	expectedSpan := &tracepb.Span{
-		TraceId:                traceId,
-		SpanId:                 spanId,
-		ParentSpanId:           []byte{},
-		TraceState:             "key1=val1,key2=val2",
-		Name:                   span.OperationName,
-		Kind:                   tracepb.Span_SPAN_KIND_SERVER,
-		StartTimeUnixNano:      uint64(span.StartTime),
-		EndTimeUnixNano:        uint64(endTime.UnixNano() - span.StartTime),
-		Status:                 status("OK","Hooray!"),
-		Events:                 Events(spanData.Events),
-		Links:                  links(spanData.Links),
-		Attributes:             KeyValues(spanData.Attributes),
-		DroppedAttributesCount: 1,
-		DroppedEventsCount:     2,
-		DroppedLinksCount:      3,
-	}
-
+	var spans []*model.Batch
+	append(spans, span)
 	return nil
 }
 
